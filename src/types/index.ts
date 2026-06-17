@@ -1,4 +1,4 @@
-import type { AccountRole } from "@/lib/auth/roles";
+import type { AccountRole } from '@/lib/auth/roles';
 
 export interface Profile {
   id: string;
@@ -47,6 +47,19 @@ export interface Account {
   name: string;
   /** auth.users.id of the immutable owner. */
   owner_user_id: string;
+  /** SaaS package for this business/account. */
+  package_type?: 'starter' | 'growth' | 'custom';
+  /** Monthly AI reply limit. Enforced by Phase 4 before model calls. */
+  monthly_ai_reply_limit?: number;
+  /** Product/service limit. Enforced by Phase 3 product tables. */
+  product_limit?: number;
+  /** Account-wide bot kill switch. */
+  bot_enabled?: boolean;
+  /** Starter/Growth/Custom lead feature gates. */
+  lead_lite_enabled?: boolean;
+  full_leads_enabled?: boolean;
+  /** Custom package flags and future manually enabled features. */
+  feature_flags?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -77,7 +90,7 @@ export interface AccountInvitation {
   id: string;
   account_id: string;
   /** Roles offered via invite — owner is never offered. */
-  role: Exclude<AccountRole, "owner">;
+  role: Exclude<AccountRole, 'owner'>;
   created_by_user_id: string | null;
   label: string | null;
   created_at: string;
@@ -146,6 +159,7 @@ export type ConversationStatus = 'open' | 'pending' | 'closed';
 
 export interface Conversation {
   id: string;
+  account_id?: string;
   user_id: string;
   contact_id: string;
   status: ConversationStatus;
@@ -153,9 +167,30 @@ export interface Conversation {
   last_message_text?: string;
   last_message_at?: string;
   unread_count: number;
+  bot_paused?: boolean;
+  lead_intent_detected?: boolean;
+  lead_interest?: string | null;
+  lead_last_detected_at?: string | null;
   created_at: string;
   updated_at: string;
   contact?: Contact;
+}
+
+export type LeadStatus = 'new' | 'contacted' | 'won' | 'lost';
+
+export interface Lead {
+  id: string;
+  account_id: string;
+  contact_id?: string | null;
+  conversation_id?: string | null;
+  source_message_id?: string | null;
+  customer_name?: string | null;
+  phone_number?: string | null;
+  product_interest?: string | null;
+  status: LeadStatus;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export type SenderType = 'customer' | 'agent' | 'bot';
@@ -169,7 +204,12 @@ export type ContentType =
   | 'template'
   /** Customer tapped a reply button or list row on a message we sent. */
   | 'interactive';
-export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+export type MessageStatus =
+  | 'sending'
+  | 'sent'
+  | 'delivered'
+  | 'read'
+  | 'failed';
 
 export interface Message {
   id: string;
@@ -317,8 +357,19 @@ export interface Deal {
   assignee?: Profile;
 }
 
-export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
-export type RecipientStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed';
+export type BroadcastStatus =
+  | 'draft'
+  | 'scheduled'
+  | 'sending'
+  | 'sent'
+  | 'failed';
+export type RecipientStatus =
+  | 'pending'
+  | 'sent'
+  | 'delivered'
+  | 'read'
+  | 'replied'
+  | 'failed';
 
 export interface Broadcast {
   id: string;

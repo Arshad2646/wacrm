@@ -1,5 +1,42 @@
 # wacrm — CRM Template for WhatsApp
 
+## SaaS MVP Pivot
+
+This fork is being converted into a managed multi-client WhatsApp AI chatbot SaaS MVP for small businesses in Botswana and Southern Africa.
+
+The target product is a simple WhatsApp AI sales assistant:
+
+- Starter Bot answers customer enquiries.
+- Growth Bot + Leads answers customers and helps close serious buyers.
+- Manual onboarding comes first.
+- Meta Embedded Signup and billing come later.
+
+Start with the project memory files before changing product behavior:
+
+- [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)
+- [`TASKS.md`](./TASKS.md)
+- [`DECISIONS.md`](./DECISIONS.md)
+- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
+- [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md)
+- [`docs/FUTURE_EMBEDDED_SIGNUP.md`](./docs/FUTURE_EMBEDDED_SIGNUP.md)
+
+For manual MVP onboarding, set `SUPER_ADMIN_EMAILS` in the server
+environment and visit `/super-admin` while signed in with one of those
+emails. The internal page manages account package settings, bot status,
+reply/product limits, and lead feature gates without exposing WhatsApp
+tokens.
+
+Business users maintain chatbot knowledge from the dashboard:
+
+- `/business-info` for business profile, opening hours, delivery/payment, ordering instructions, fallback message, and bot tone.
+- `/products` for package-limited products/services.
+- `/knowledge` for FAQs and reusable answers.
+- `/ai-test` to test Gemini/OpenAI replies with account knowledge without sending WhatsApp messages.
+
+AI provider switching is controlled server-side with `AI_PROVIDER=gemini` or
+`AI_PROVIDER=openai` and the provider-specific env vars in
+`.env.local.example`.
+
 > Self-hostable CRM template for WhatsApp® — shared inbox, contacts,
 > sales pipelines, broadcasts, and no-code automations. Fork it, brand
 > it, host it.
@@ -96,16 +133,16 @@ Kubernetes cluster.
 
 ### Why Hostinger?
 
-| | |
-|---|---|
-| **One-click Git deploy** | Connect your fork, push to `main`, Hostinger builds and ships it. No SSH, no Docker, no CI to wire up — this repo's own `main` deploys this way. |
-| **Managed Node.js** | Next.js 16 (App Router, server actions, ISR) runs out of the box on [Premium, Business, and Cloud](https://www.hostinger.com/web-apps-hosting) shared plans. You don't manage Node versions, processes, or reverse proxies. |
-| **Free SSL + free domain** | Automatic Let's Encrypt on your custom domain (or a free one included with annual plans). HTTPS is on by default — required for the WhatsApp Business webhook. |
-| **Global CDN + LiteSpeed** | Static assets cached at the edge, dynamic routes served from LiteSpeed. Snappy dashboards out of the box, no Cloudflare setup required. |
-| **Env vars + logs in hPanel** | Set `SUPABASE_*`, `WHATSAPP_*`, and `ENCRYPTION_KEY` from the panel — no `.env` on the server. Live application logs in the same UI. |
-| **DDoS protection + daily backups** | Built-in, no add-ons. The webhook endpoint is a public target — having protection at the edge matters. |
-| **Cheaper than a VPS** | Plans start at a few dollars a month — order-of-magnitude less than a comparable managed Node.js host, and you don't pay extra for the database (that's Supabase). |
-| **24/7 human support** | Live chat support in 20+ languages — useful when your CRM is the thing your team relies on to talk to customers. |
+|                                     |                                                                                                                                                                                                                             |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **One-click Git deploy**            | Connect your fork, push to `main`, Hostinger builds and ships it. No SSH, no Docker, no CI to wire up — this repo's own `main` deploys this way.                                                                            |
+| **Managed Node.js**                 | Next.js 16 (App Router, server actions, ISR) runs out of the box on [Premium, Business, and Cloud](https://www.hostinger.com/web-apps-hosting) shared plans. You don't manage Node versions, processes, or reverse proxies. |
+| **Free SSL + free domain**          | Automatic Let's Encrypt on your custom domain (or a free one included with annual plans). HTTPS is on by default — required for the WhatsApp Business webhook.                                                              |
+| **Global CDN + LiteSpeed**          | Static assets cached at the edge, dynamic routes served from LiteSpeed. Snappy dashboards out of the box, no Cloudflare setup required.                                                                                     |
+| **Env vars + logs in hPanel**       | Set `SUPABASE_*`, `WHATSAPP_*`, and `ENCRYPTION_KEY` from the panel — no `.env` on the server. Live application logs in the same UI.                                                                                        |
+| **DDoS protection + daily backups** | Built-in, no add-ons. The webhook endpoint is a public target — having protection at the edge matters.                                                                                                                      |
+| **Cheaper than a VPS**              | Plans start at a few dollars a month — order-of-magnitude less than a comparable managed Node.js host, and you don't pay extra for the database (that's Supabase).                                                          |
+| **24/7 human support**              | Live chat support in 20+ languages — useful when your CRM is the thing your team relies on to talk to customers.                                                                                                            |
 
 ### The 60-second version
 
@@ -130,6 +167,7 @@ API config, and production deploy — lives at
 (source: [ArnasDon/wacrm-site](https://github.com/ArnasDon/wacrm-site)).
 
 Key pages:
+
 - [Getting started](https://wacrm.tech/docs/getting-started)
 - [Supabase setup](https://wacrm.tech/docs/supabase-setup)
 - [WhatsApp setup](https://wacrm.tech/docs/whatsapp-setup)
