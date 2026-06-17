@@ -47,6 +47,22 @@ describe('decideAiReply', () => {
     });
   });
 
+  it('blocks AI calls when the conversation is paused for a human', () => {
+    expect(
+      decideAiReply({
+        hasCustomerText: true,
+        botEnabled: true,
+        conversationBotPaused: true,
+        repliesUsed: 0,
+        monthlyLimit: 1500,
+      })
+    ).toEqual({
+      shouldCallAi: false,
+      shouldSendFallback: false,
+      reason: 'conversation_paused',
+    });
+  });
+
   it('allows AI when text, bot, conversation, and usage checks pass', () => {
     expect(
       decideAiReply({

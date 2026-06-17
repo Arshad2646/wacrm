@@ -12,6 +12,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import { DEFAULT_CURRENCY } from '@/lib/currency';
+import type { PackageType } from '@/lib/saas/packages';
 import {
   canEditSettings as canEditSettingsFor,
   canManageMembers as canManageMembersFor,
@@ -42,8 +43,9 @@ interface AccountSummary {
   /** Default deal currency (ISO-4217). NOT NULL DEFAULT 'USD' in the
    *  DB (migration 021); narrowed to DEFAULT_CURRENCY when absent. */
   default_currency: string;
-  package_type?: 'starter' | 'growth' | 'custom';
+  package_type?: PackageType;
   full_leads_enabled?: boolean;
+  feature_flags?: Record<string, unknown>;
 }
 
 interface AuthContextValue {
@@ -103,6 +105,8 @@ interface AuthContextValue {
   canEditSettings: boolean;
   /** True if the caller can send messages and edit operational data (agent+). */
   canSendMessages: boolean;
+  /** True when the signed-in user's email is listed in SUPER_ADMIN_EMAILS. */
+  isSuperAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -117,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [account, setAccount] = useState<AccountSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   // Tracked separately from `loading`. The session settles fast (one
   // local cookie read); the profile fetch crosses the network and
   // settles later. Callers that gate on `profile.*` need to know which
@@ -138,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // missing account collapses to null rather than a half-
           // populated row (shouldn't happen post-017 NOT NULL, but
           // belt-and-braces against forks running older schemas).
-          'id, full_name, email, avatar_url, role, beta_features, account_id, account_role, account:accounts!inner(id, name, default_currency, package_type, full_leads_enabled)'
+          'id, full_name, email, avatar_url, role, beta_features, account_id, account_role, account:accounts!inner(id, name, default_currency, package_type, full_leads_enabled, feature_flags)'
         )
         .eq('user_id', userId)
         .maybeSingle();
@@ -164,8 +169,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               id: string;
               name: string;
               default_currency: string | null;
-              package_type?: 'starter' | 'growth' | 'custom' | null;
+              package_type?: PackageType | null;
               full_leads_enabled?: boolean | null;
+              feature_flags?: Record<string, unknown> | null;
             } | null);
         // Narrow default_currency defensively: forks running pre-021
         // schemas won't have the column, so a missing/null value reads
@@ -177,6 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               default_currency: accountRaw.default_currency ?? DEFAULT_CURRENCY,
               package_type: accountRaw.package_type ?? undefined,
               full_leads_enabled: accountRaw.full_leads_enabled ?? false,
+              feature_flags: accountRaw.feature_flags ?? {},
             }
           : null;
 
@@ -212,6 +219,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const fetchSuperAdminStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/super-admin/status', {
+        cache: 'no-store',
+      });
+      if (!response.ok) {
+        setIsSuperAdmin(false);
+        return;
+      }
+      const data = (await response.json()) as { isSuperAdmin?: boolean };
+      setIsSuperAdmin(data.isSuperAdmin === true);
+    } catch (err) {
+      console.error('[AuthProvider] super-admin status fetch failed:', err);
+      setIsSuperAdmin(false);
+    }
+  }, []);
+
   useEffect(() => {
     const supabase = createClient();
     let mounted = true;
@@ -244,11 +268,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // profile enriches async. Callers that need to branch on
           // profile data gate on `profileLoading` instead.
           fetchProfile(currentUser.id);
+          fetchSuperAdminStatus();
         } else {
           // No user → no profile to load. Flip profileLoading off so
           // pages that gate on it don't wait forever on the logged-out
           // path (the route guard or redirect should fire instead).
           setProfileLoading(false);
+          setIsSuperAdmin(false);
         }
       } catch (err) {
         console.error('[AuthProvider] init threw:', err);
@@ -269,9 +295,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (currentUser) {
         fetchProfile(currentUser.id);
+        fetchSuperAdminStatus();
       } else {
         setProfile(null);
         setAccount(null);
+        setIsSuperAdmin(false);
         setProfileLoading(false);
       }
 
@@ -283,7 +311,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, [fetchProfile, fetchSuperAdminStatus]);
 
   const signOut = useCallback(async () => {
     const supabase = createClient();
@@ -291,6 +319,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setProfile(null);
     setAccount(null);
+    setIsSuperAdmin(false);
     window.location.href = '/login';
   }, []);
 
@@ -328,6 +357,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         refreshProfile,
         account,
+        isSuperAdmin,
         defaultCurrency: account?.default_currency ?? DEFAULT_CURRENCY,
         ...derived,
       }}
@@ -358,6 +388,7 @@ export function useAuth(): AuthContextValue {
       },
       refreshProfile: async () => {},
       account: null,
+      isSuperAdmin: false,
       defaultCurrency: DEFAULT_CURRENCY,
       accountId: null,
       accountRole: null,

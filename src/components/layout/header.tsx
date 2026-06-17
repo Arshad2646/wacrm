@@ -1,38 +1,49 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useAuth } from "@/hooks/use-auth";
-import { LogOut, Menu, Settings as SettingsIcon, User } from "lucide-react";
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useAuth } from '@/hooks/use-auth';
 import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar";
+  LogOut,
+  Menu,
+  Settings as SettingsIcon,
+  Shield,
+  User,
+} from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 
 const pageTitles: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/inbox": "Inbox",
-  "/contacts": "Contacts",
-  "/pipelines": "Pipelines",
-  "/broadcasts": "Broadcasts",
-  "/automations": "Automations",
-  "/settings": "Settings",
+  '/dashboard': 'Dashboard',
+  '/inbox': 'Conversations',
+  '/needs-reply': 'Needs Reply',
+  '/contacts': 'Contacts',
+  '/pipelines': 'Pipelines',
+  '/broadcasts': 'Broadcasts',
+  '/automations': 'Automations',
+  '/ai-test': 'Test Bot Reply',
+  '/bot-settings': 'Bot Settings',
+  '/business-info': 'Business Info',
+  '/knowledge': 'FAQs / Knowledge',
+  '/leads': 'Leads',
+  '/products': 'Products & Services',
+  '/usage': 'Usage',
+  '/settings': 'Settings',
+  '/super-admin': 'Super Admin',
 };
 
 function getPageTitle(pathname: string): string {
   if (pageTitles[pathname]) return pageTitles[pathname];
   const match = Object.entries(pageTitles).find(([path]) =>
-    pathname.startsWith(path),
+    pathname.startsWith(path)
   );
-  return match ? match[1] : "Dashboard";
+  return match ? match[1] : 'Dashboard';
 }
 
 interface HeaderProps {
@@ -43,13 +54,13 @@ interface HeaderProps {
 
 export function Header({ onOpenSidebar }: HeaderProps) {
   const pathname = usePathname();
-  const { profile, signOut } = useAuth();
+  const { profile, isSuperAdmin, signOut } = useAuth();
   const title = getPageTitle(pathname);
 
   const initial =
     profile?.full_name?.charAt(0)?.toUpperCase() ??
     profile?.email?.charAt(0)?.toUpperCase() ??
-    "U";
+    'U';
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-800 bg-slate-950 px-4 lg:px-6">
@@ -66,26 +77,35 @@ export function Header({ onOpenSidebar }: HeaderProps) {
         <h1 className="truncate text-base font-semibold text-white sm:text-lg">
           {title}
         </h1>
+        {isSuperAdmin && (
+          <Link
+            href="/super-admin"
+            className="hidden items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-200 hover:bg-amber-500/15 sm:inline-flex"
+          >
+            <Shield className="size-3" />
+            Super admin
+          </Link>
+        )}
       </div>
 
       <DropdownMenu>
         <DropdownMenuTrigger
-          className="flex items-center gap-2 rounded-md px-1 py-1 transition-colors hover:bg-slate-800/70 focus:bg-slate-800/70 focus:outline-none data-popup-open:bg-slate-800/70 sm:gap-3 sm:pl-1 sm:pr-3"
+          className="flex items-center gap-2 rounded-md px-1 py-1 transition-colors hover:bg-slate-800/70 focus:bg-slate-800/70 focus:outline-none data-popup-open:bg-slate-800/70 sm:gap-3 sm:pr-3 sm:pl-1"
           aria-label="Open account menu"
         >
           <Avatar className="size-8">
             {profile?.avatar_url ? (
               <AvatarImage
                 src={profile.avatar_url}
-                alt={profile.full_name ?? "Avatar"}
+                alt={profile.full_name ?? 'Avatar'}
               />
             ) : null}
-            <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
+            <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
               {initial}
             </AvatarFallback>
           </Avatar>
           <span className="hidden text-sm font-medium text-white sm:inline">
-            {profile?.full_name ?? "User"}
+            {profile?.full_name ?? 'User'}
           </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent
@@ -95,13 +115,29 @@ export function Header({ onOpenSidebar }: HeaderProps) {
         >
           <div className="px-2 py-1.5">
             <p className="truncate text-sm font-medium text-white">
-              {profile?.full_name ?? "User"}
+              {profile?.full_name ?? 'User'}
             </p>
             <p className="truncate text-xs text-slate-400">
-              {profile?.email ?? ""}
+              {profile?.email ?? ''}
             </p>
           </div>
           <DropdownMenuSeparator className="bg-slate-800" />
+          {isSuperAdmin && (
+            <>
+              <DropdownMenuItem
+                render={
+                  <Link
+                    href="/super-admin"
+                    className="text-amber-200 focus:bg-slate-800 focus:text-amber-100"
+                  />
+                }
+              >
+                <Shield className="size-4" />
+                Super Admin
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-slate-800" />
+            </>
+          )}
           <DropdownMenuItem
             render={
               <Link

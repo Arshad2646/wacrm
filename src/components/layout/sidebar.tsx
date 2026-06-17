@@ -6,16 +6,21 @@ import { useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
 import { useTotalUnread } from '@/hooks/use-total-unread';
+import { accountHasAdvancedCrmTools } from '@/lib/saas/packages';
 import {
+  BarChart3,
   Bot,
   BookOpen,
+  ChevronDown,
   Crown,
   GitBranch,
+  Inbox,
   LayoutDashboard,
   ListTodo,
   LogOut,
   MessageSquare,
   Package,
+  Power,
   Radio,
   Settings,
   Shield,
@@ -81,25 +86,42 @@ interface NavItem {
    * Purely informational — doesn't affect routing or access.
    */
   beta?: boolean;
+  superAdminOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/inbox', label: 'Inbox', icon: MessageSquare },
-  { href: '/leads', label: 'Leads', icon: ListTodo },
+  { href: '/inbox', label: 'Conversations', icon: MessageSquare },
+  { href: '/needs-reply', label: 'Needs Reply', icon: Inbox },
   { href: '/business-info', label: 'Business Info', icon: Store },
-  { href: '/products', label: 'Products', icon: Package },
-  { href: '/knowledge', label: 'Knowledge', icon: BookOpen },
-  { href: '/ai-test', label: 'AI Test', icon: Bot },
+  { href: '/products', label: 'Products & Services', icon: Package },
+  { href: '/knowledge', label: 'FAQs / Knowledge', icon: BookOpen },
+  { href: '/ai-test', label: 'Test Bot Reply', icon: Bot },
+  { href: '/bot-settings', label: 'Bot Settings', icon: Power },
+  { href: '/usage', label: 'Usage', icon: BarChart3 },
+  { href: '/leads', label: 'Leads', icon: ListTodo },
+  {
+    href: '/super-admin',
+    label: 'Super Admin',
+    icon: Shield,
+    superAdminOnly: true,
+  },
+];
+
+const bottomNavItems = [
+  {
+    href: '/settings?tab=whatsapp',
+    label: 'WhatsApp & Settings',
+    icon: Settings,
+  },
+];
+
+const advancedNavItems: NavItem[] = [
   { href: '/contacts', label: 'Contacts', icon: Users },
   { href: '/pipelines', label: 'Pipelines', icon: GitBranch },
   { href: '/broadcasts', label: 'Broadcasts', icon: Radio },
   { href: '/automations', label: 'Automations', icon: Zap },
   { href: '/flows', label: 'Flows', icon: Workflow, beta: true },
-];
-
-const bottomNavItems = [
-  { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
 interface SidebarProps {
@@ -110,11 +132,21 @@ interface SidebarProps {
 
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { profile, profileLoading, account, accountRole, signOut } = useAuth();
+  const {
+    profile,
+    profileLoading,
+    account,
+    accountRole,
+    isSuperAdmin,
+    signOut,
+  } = useAuth();
   const totalUnread = useTotalUnread();
   const visibleNavItems = navItems.filter(
-    (item) => item.href !== '/leads' || account?.full_leads_enabled
+    (item) =>
+      (item.href !== '/leads' || account?.full_leads_enabled) &&
+      (!item.superAdminOnly || isSuperAdmin)
   );
+  const showAdvancedCrmTools = accountHasAdvancedCrmTools(account);
   // Only surface the account-name strip when it actually carries
   // information. A solo user's personal account is named after them
   // (the 017 signup trigger seeds it from `full_name`), so showing it
@@ -203,9 +235,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="flex flex-col gap-1">
             {visibleNavItems.map((item) => {
+              const itemPath = item.href.split('?')[0] ?? item.href;
               const isActive =
-                pathname === item.href ||
-                (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                pathname === itemPath ||
+                (itemPath !== '/dashboard' && pathname.startsWith(itemPath));
 
               const showUnreadDot =
                 item.href === '/inbox' && totalUnread > 0 && !isActive;
@@ -249,9 +282,55 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
 
           <div className="my-4 border-t border-slate-800" />
 
+          {showAdvancedCrmTools && (
+            <details
+              className="group mb-4"
+              open={advancedNavItems.some((item) =>
+                pathname.startsWith(item.href)
+              )}
+            >
+              <summary className="flex cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-800 hover:text-white lg:py-2 [&::-webkit-details-marker]:hidden">
+                <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+                <span className="flex-1">Advanced CRM tools</span>
+              </summary>
+              <ul className="mt-1 flex flex-col gap-1 pl-3">
+                {advancedNavItems.map((item) => {
+                  const isActive =
+                    pathname === item.href || pathname.startsWith(item.href);
+
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                          isActive
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        )}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span className="flex-1">{item.label}</span>
+                        {item.beta && (
+                          <span
+                            aria-label="Beta feature"
+                            className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold tracking-wider text-amber-300 uppercase"
+                          >
+                            Beta
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </details>
+          )}
+
           <ul className="flex flex-col gap-1">
             {bottomNavItems.map((item) => {
-              const isActive = pathname.startsWith(item.href);
+              const itemPath = item.href.split('?')[0] ?? item.href;
+              const isActive = pathname.startsWith(itemPath);
               return (
                 <li key={item.href}>
                   <Link
@@ -309,6 +388,16 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 : null}
             </div>
           ) : null}
+          {isSuperAdmin && (
+            <Link
+              href="/super-admin"
+              onClick={onClose}
+              className="mb-2 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-200 hover:bg-amber-500/15"
+            >
+              <Shield className="size-3.5" />
+              Super admin mode
+            </Link>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-slate-800/60 focus:bg-slate-800/60 focus:outline-none data-popup-open:bg-slate-800/60">
               <Avatar className="size-8 shrink-0">
@@ -364,6 +453,23 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 Settings
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-slate-800" />
+              {isSuperAdmin && (
+                <>
+                  <DropdownMenuItem
+                    render={
+                      <Link
+                        href="/super-admin"
+                        onClick={onClose}
+                        className="text-amber-200 focus:bg-slate-800 focus:text-amber-100"
+                      />
+                    }
+                  >
+                    <Shield className="size-4" />
+                    Super Admin
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-slate-800" />
+                </>
+              )}
               <DropdownMenuItem
                 onClick={signOut}
                 className="text-slate-200 focus:bg-slate-800 focus:text-white"

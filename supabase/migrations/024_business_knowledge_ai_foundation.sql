@@ -72,7 +72,7 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON account_business_profiles
 -- PRODUCTS / SERVICES
 -- ============================================================
 CREATE TABLE IF NOT EXISTS account_products (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   price_text TEXT,
@@ -167,7 +167,7 @@ CREATE TRIGGER enforce_account_product_limit_before_insert
 -- FAQS / KNOWLEDGE ENTRIES
 -- ============================================================
 CREATE TABLE IF NOT EXISTS account_knowledge_entries (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   content TEXT NOT NULL,

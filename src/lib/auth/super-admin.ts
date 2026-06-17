@@ -22,6 +22,11 @@ function configuredSuperAdminEmails(): Set<string> {
   return parseCsvEnv(process.env.SUPER_ADMIN_EMAILS);
 }
 
+export function isConfiguredSuperAdminEmail(email: string | null | undefined) {
+  if (!email) return false;
+  return configuredSuperAdminEmails().has(email.toLowerCase());
+}
+
 export async function requireSuperAdmin() {
   const supabase = await createClient();
   const {
@@ -33,8 +38,7 @@ export async function requireSuperAdmin() {
     throw new SuperAdminForbiddenError();
   }
 
-  const allowedEmails = configuredSuperAdminEmails();
-  if (!allowedEmails.has(user.email.toLowerCase())) {
+  if (!isConfiguredSuperAdminEmail(user.email)) {
     throw new SuperAdminForbiddenError();
   }
 

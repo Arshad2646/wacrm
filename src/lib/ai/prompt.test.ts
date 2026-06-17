@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildBusinessScopedPrompt } from './prompt';
+import {
+  buildBusinessScopedConversationPrompt,
+  buildBusinessScopedPrompt,
+} from './prompt';
 import type { BusinessKnowledgeBundle } from '@/lib/knowledge/types';
 
 const bundle: BusinessKnowledgeBundle = {
@@ -72,5 +75,22 @@ describe('buildBusinessScopedPrompt', () => {
     expect(prompt.system).toContain('mixed question');
     expect(prompt.system).toContain('do not guess');
     expect(prompt.system).toContain('buying intent');
+  });
+});
+
+describe('buildBusinessScopedConversationPrompt', () => {
+  it('includes recent transcript while keeping the business-scoped system prompt', () => {
+    const prompt = buildBusinessScopedConversationPrompt(bundle, [
+      { role: 'customer', content: 'Hi, do you sell projectors?' },
+      { role: 'assistant', content: 'Yes, we have a Game Projector.' },
+      { role: 'customer', content: 'Can you deliver it to Gaborone?' },
+    ]);
+
+    expect(prompt.system).toContain('MmaTech Gadgets');
+    expect(prompt.system).toContain('Do not answer general knowledge');
+    expect(prompt.user).toContain('Conversation so far');
+    expect(prompt.user).toContain('Customer: Hi, do you sell projectors?');
+    expect(prompt.user).toContain('Assistant: Yes, we have a Game Projector.');
+    expect(prompt.user).toContain('latest customer message');
   });
 });

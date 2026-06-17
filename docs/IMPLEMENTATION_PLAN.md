@@ -80,19 +80,24 @@ Tasks:
 
 ## Phase 5: UI Cleanup, Tests, and Final Docs
 
-Status: next.
+Status: complete.
 
 Goal: make the MVP usable and sellable.
 
 Tasks:
 
-- Simplify dashboard navigation by package.
-- Add or refine public pages: `/privacy`, `/terms`, `/data-deletion`.
-- Add README setup instructions for SaaS mode, migrations, and manual onboarding checks.
-- Add deeper integration-style tests for the webhook AI flow with mocked Supabase, Meta, and AI provider clients if practical.
-- Refine usage/settings UI so owners can see bot state and limits clearly.
-- Polish small-business dashboard copy and remove non-MVP navigation where appropriate.
-- Update architecture docs and worklog.
+- Simplified dashboard navigation around the chatbot SaaS workflow.
+- Kept Full Leads navigation gated to Growth/eligible Custom accounts.
+- Added `/usage` so business users can see package, monthly AI usage, product/service count, bot status, lead mode, and WhatsApp readiness.
+- Added `/bot-settings` so business owners/admins can turn the account-wide bot on/off.
+- Added `/needs-reply` so Starter and Growth users have a simple human-attention queue for unread, AI-paused, and buying-intent chats.
+- Added inbox pause/resume controls and made manual replies pause AI for that conversation.
+- Hardened WhatsApp send/reaction/config routes so account role checks happen before Meta API side effects.
+- Added public pages: `/privacy`, `/terms`, `/data-deletion`.
+- Added README setup instructions for SaaS mode, migrations, super-admin access, AI provider setup, Meta WhatsApp setup, manual onboarding, AI testing, WhatsApp testing, usage limits, and lead modes.
+- Added manual QA, production readiness, and first-client onboarding docs.
+- Added targeted tests for package gates, product limits, and super-admin email parsing.
+- Ran the available typecheck, lint, test, build, and formatting checks, recording any remaining issues in `TASKS.md` / `WORKLOG.md`.
 
 ## Practical MVP Principle
 

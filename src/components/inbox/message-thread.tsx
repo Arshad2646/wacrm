@@ -21,9 +21,12 @@ import {
   Clock,
   ArrowLeft,
   RefreshCw,
+  PauseCircle,
+  PlayCircle,
 } from 'lucide-react';
 import { format, isToday, isYesterday, differenceInHours } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
+import { useCan } from '@/hooks/use-can';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +34,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageBubble } from './message-bubble';
 import { MessageActions } from './message-actions';
 import { MessageComposer } from './message-composer';
@@ -64,6 +66,7 @@ interface MessageThreadProps {
     conversationId: string,
     assignedAgentId: string | null
   ) => void;
+  onBotPauseChange: (conversationId: string, botPaused: boolean) => void;
   /**
    * On mobile, the thread is shown full-screen with the conversation list
    * hidden. This callback lets the page deselect the active conversation
@@ -144,11 +147,13 @@ export function MessageThread({
   onUpdateMessage,
   onStatusChange,
   onAssignChange,
+  onBotPauseChange,
   onBack,
   resyncToken = 0,
   onRefresh,
 }: MessageThreadProps) {
   const { user } = useAuth();
+  const canSend = useCan('send-messages');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
@@ -159,6 +164,7 @@ export function MessageThread({
   // parent's resyncToken); the 700ms spin is just feedback so the click
   // doesn't feel like a no-op. Cleared via the timer ref on unmount.
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [botPauseSaving, setBotPauseSaving] = useState(false);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     return () => {
@@ -246,6 +252,7 @@ export function MessageThread({
 
   const conversationId = conversation?.id;
   const hasUnread = (conversation?.unread_count ?? 0) > 0;
+  const botPaused = conversation?.bot_paused === true;
 
   // Fetch messages whenever the selected conversation changes. Kept
   // separate from the unread-reset effect so that incoming messages
@@ -471,6 +478,7 @@ export function MessageThread({
         // with the real DB row. If realtime hasn't arrived yet, at least
         // flip status to 'sent' so the UI stops showing "sending".
         onUpdateMessage(tempId, { status: 'sent' });
+        onBotPauseChange(conversation.id, true);
       } catch (err) {
         console.error('Failed to send message:', err);
         const reason = err instanceof Error ? err.message : 'network error';
@@ -478,7 +486,7 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: 'failed' });
       }
     },
-    [conversation, onNewMessage, onUpdateMessage]
+    [conversation, onBotPauseChange, onNewMessage, onUpdateMessage]
   );
 
   const handleStatusChange = useCallback(
@@ -560,6 +568,7 @@ export function MessageThread({
         }
 
         onUpdateMessage(tempId, { status: 'sent' });
+        onBotPauseChange(conversation.id, true);
       } catch (err) {
         console.error('Failed to send template:', err);
         const reason = err instanceof Error ? err.message : 'network error';
@@ -567,7 +576,7 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: 'failed' });
       }
     },
-    [conversation, onNewMessage, onUpdateMessage]
+    [conversation, onBotPauseChange, onNewMessage, onUpdateMessage]
   );
 
   // Build a quick id → Message map so reply quotes can be rendered without
@@ -697,6 +706,38 @@ export function MessageThread({
     [conversation, onAssignChange]
   );
 
+  const handleBotPauseToggle = useCallback(async () => {
+    if (!conversation || !canSend || botPauseSaving) return;
+
+    const nextPaused = !botPaused;
+    setBotPauseSaving(true);
+    try {
+      const res = await fetch(
+        `/api/conversations/${conversation.id}/bot-pause`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paused: nextPaused }),
+        }
+      );
+      const payload = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const reason = payload?.error || `HTTP ${res.status}`;
+        toast.error(`Could not update bot: ${reason}`);
+        return;
+      }
+
+      onBotPauseChange(conversation.id, nextPaused);
+      toast.success(nextPaused ? 'AI paused for this chat' : 'AI resumed');
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : 'network error';
+      toast.error(`Could not update bot: ${reason}`);
+    } finally {
+      setBotPauseSaving(false);
+    }
+  }, [botPauseSaving, botPaused, canSend, conversation, onBotPauseChange]);
+
   // Empty state — same WhatsApp-style doodle background as the active
   // thread below, so swapping between empty/selected doesn't change the
   // pattern under the user's eye.
@@ -781,9 +822,44 @@ export function MessageThread({
               Interested{leadInterest ? `: ${leadInterest}` : ''}
             </Badge>
           )}
+          {botPaused && (
+            <Badge
+              variant="outline"
+              className="hidden border-amber-500/40 bg-amber-500/10 text-[10px] text-amber-300 md:inline-flex"
+            >
+              AI paused
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleBotPauseToggle}
+            disabled={!canSend || botPauseSaving}
+            aria-label={
+              botPaused ? 'Resume AI for this chat' : 'Pause AI for this chat'
+            }
+            title={
+              botPaused ? 'Resume AI for this chat' : 'Pause AI for this chat'
+            }
+            className={cn(
+              'inline-flex h-7 items-center justify-center gap-1 rounded-md px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+              botPaused
+                ? 'border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            )}
+          >
+            {botPaused ? (
+              <PlayCircle className="h-3.5 w-3.5" />
+            ) : (
+              <PauseCircle className="h-3.5 w-3.5" />
+            )}
+            <span className="hidden sm:inline">
+              {botPaused ? 'Resume bot' : 'Pause bot'}
+            </span>
+          </button>
+
           {/* Manual refresh — forces a refetch of the messages + the
               conversation list (the parent bumps its resyncToken). Useful
               when realtime missed an event or the agent just wants to be

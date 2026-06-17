@@ -89,7 +89,7 @@ GRANT UPDATE ON accounts TO service_role;
 -- MONTHLY AI USAGE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS account_ai_usage_months (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   month_start DATE NOT NULL,
   ai_replies_used INTEGER NOT NULL DEFAULT 0,

@@ -10,11 +10,19 @@ Important areas:
 - `src/app/api` contains server route handlers.
 - `src/app/api/whatsapp/webhook/route.ts` handles Meta webhook verification, inbound messages, status updates, template webhook events, conversation/message persistence, automation dispatch, and flow dispatch.
 - `src/lib/ai/whatsapp-bot.ts` runs the Phase 4 inbound WhatsApp AI reply flow after the webhook saves a customer message.
+- `src/app/api/ai-test/chat/route.ts` provides a server-side AI chat simulator endpoint for `/ai-test`.
+- `src/app/api/super-admin/status/route.ts` returns the current user's env-gated super-admin status to dashboard chrome.
 - `src/app/api/whatsapp/config/route.ts` saves and verifies WhatsApp Cloud API configuration.
 - `src/app/api/whatsapp/send/route.ts` sends manual WhatsApp replies from the dashboard.
+- `src/app/api/conversations/[id]/bot-pause/route.ts` pauses/resumes AI for one conversation after an agent+ role check.
 - `src/components/inbox` contains the conversation inbox UI.
+- `src/components/ai-test/ai-chat-tester.tsx` contains the WhatsApp-style local AI test chat UI.
 - `src/app/(dashboard)/leads/page.tsx` contains the simple Full Leads follow-up page for Growth/eligible Custom accounts.
+- `src/app/(dashboard)/needs-reply/page.tsx` contains the Starter-friendly human attention queue.
+- `src/app/(dashboard)/bot-settings/page.tsx` contains the business-admin account-wide bot switch.
+- `src/app/(dashboard)/usage/page.tsx` shows package, monthly AI usage, product/service count, bot status, lead mode, and WhatsApp readiness for the current account.
 - `src/components/settings/whatsapp-config.tsx` contains WhatsApp settings UI.
+- `src/app/privacy/page.tsx`, `src/app/terms/page.tsx`, and `src/app/data-deletion/page.tsx` provide simple public pages required for Meta production setup.
 - `src/lib/whatsapp` contains encryption, Meta API, webhook signature, phone utility, and template helpers.
 - `src/lib/auth` contains account/role helpers.
 - `supabase/migrations` contains schema, RLS, account-sharing, WhatsApp, automations, flows, and related database migrations.
@@ -100,15 +108,16 @@ Phase 4 extends the existing webhook without rebuilding it:
 
 Package rules:
 
-    - Starter: Lead Lite only.
-    - Growth: Full Leads.
-    - Custom: manual feature flags.
+- Starter: Lead Lite only.
+- Growth: Full Leads.
+- Custom: manual feature flags.
 
 Fallback behavior:
 
 - If the bot is disabled or a conversation is paused, no AI call is made and no bot reply is sent.
 - If the monthly usage limit is reached, no AI call is made. The account fallback message is sent if configured, otherwise the default fallback is used.
 - If the AI provider fails, the provider error is logged, the fallback message is sent, and AI usage is not incremented.
+- A successful manual dashboard reply sets `conversations.bot_paused = true`, handing that chat to a human until staff resume the bot in the inbox.
 
 `Thank you for your message. Our team will get back to you shortly.`
 
@@ -167,7 +176,7 @@ The prompt builder loads only the current account's:
 - active FAQ/knowledge entries
 - package/bot settings
 
-The `/ai-test` page lets a signed-in business user test a sample message against that prompt without sending WhatsApp messages.
+The `/ai-test` page lets a signed-in business user test a local WhatsApp-style conversation against that prompt without sending WhatsApp messages. The browser keeps the temporary transcript, and `/api/ai-test/chat` sends the recent turns to the AI provider through server-side code.
 
 ## Business Knowledge Model
 
@@ -204,6 +213,7 @@ Phase 4 adds `increment_account_ai_usage(account_id, month_start)` and now:
 - Growth default: 5000 AI replies/month.
 - Custom: super admin manually sets limit.
 - Super admin can view current monthly usage.
+- Business users can view current monthly usage and package readiness from `/usage`.
 
 ## Package Feature Gating
 
@@ -232,6 +242,10 @@ Starter forces Lead Lite enabled and Full Leads disabled. Growth forces Lead Lit
 
 Authenticated account admins keep update access to ordinary account fields such as `name` and `default_currency`. SaaS package columns are service-role managed through the internal `/super-admin` route, guarded by `SUPER_ADMIN_EMAILS`.
 
+When a super admin edits an existing account, `/super-admin` includes an "Apply selected package defaults" checkbox. For Starter and Growth, this resets monthly AI reply limit, product/service limit, and lead flags to the selected package defaults. For Custom, limits and flags remain manual.
+
+Advanced CRM tools use `accounts.feature_flags.advanced_crm_tools_enabled`. The flag defaults off, is managed only by super admin, and is forced off for Starter. Growth and Custom accounts can receive the feature later when the SaaS operator intentionally enables it.
+
 ## Lead Lite vs Full Leads
 
 Starter Lead Lite:
@@ -242,6 +256,7 @@ Starter Lead Lite:
   - `lead_interest`
   - `lead_last_detected_at`
 - Show simple interest indicators inside the conversation.
+- Surface unread, AI-paused, and buying-intent chats in `/needs-reply`.
 - No dedicated leads page.
 - No lead board.
 - No statuses, export, reminders, staff assignment, or advanced analytics.
@@ -281,6 +296,10 @@ Current useful security foundations:
 - WhatsApp access and verify tokens are encrypted.
 - Webhook POST requests validate Meta signatures using `META_APP_SECRET`.
 - Supabase service-role client is used only server-side for webhook/engine work.
+- Manual WhatsApp send/reaction routes require `agent` or higher before any Meta API call.
+- WhatsApp config save/reset requires `admin` or higher before any Meta verification, registration, subscription, save, or reset.
+- Account-wide bot control requires `admin` or higher. Conversation-level bot pause/resume requires `agent` or higher.
+- The WhatsApp settings UI selects only safe metadata columns and does not load encrypted token columns into browser state.
 
 Target security rules:
 
@@ -304,8 +323,15 @@ MVP manual onboarding target:
 7. Super admin enables Lead Lite or Full Leads through package/feature settings.
 8. Super admin creates or invites the business owner/admin.
 9. Business owner maintains products, FAQs, services, business info, prices, delivery/payment/order instructions, and bot settings.
+10. Business owner/admin can turn the account-wide AI bot on/off from `/bot-settings`; staff can pause/resume AI per conversation from the inbox.
 
 The internal super-admin page currently manages package settings, usage visibility, WhatsApp connection status, bot status, and lead flags. WhatsApp credential editing remains in the existing account settings flow for now; sensitive access tokens are not displayed in super-admin.
+
+The dashboard chrome calls `/api/super-admin/status` after sign-in and shows a Super Admin nav item, header badge, and account-menu link only when the current user's email is listed in `SUPER_ADMIN_EMAILS`. This client-visible flag is only a usability signal; all privileged reads/writes still call `requireSuperAdmin()` on the server.
+
+Super admins can also create a business owner from `/super-admin`. The action uses Supabase Admin Auth to create the owner user, relies on the existing signup trigger to create the account/profile, and then applies package defaults to the resulting account.
+
+The Businesses section is rendered as responsive account cards rather than a wide data table so package, usage, WhatsApp, limit, and feature-gate controls remain readable on normal dashboard widths.
 
 ## Business Dashboard Knowledge Flow
 
@@ -314,11 +340,33 @@ Phase 3 dashboard routes:
 - `/business-info`: account admin edits chatbot profile fields.
 - `/products`: account users with agent+ role manage products/services. Product count is compared to `accounts.product_limit`.
 - `/knowledge`: account users with agent+ role manage FAQs and knowledge entries.
-- `/ai-test`: signed-in account users test the business-scoped AI reply with no WhatsApp send.
+- `/ai-test`: signed-in account users test a WhatsApp-style chat flow with account-scoped AI replies and no WhatsApp send.
 
 Phase 4 dashboard route:
 
 - `/leads`: Growth and Full-Leads-enabled Custom accounts can filter leads by status, update status/notes, and open the source inbox conversation. Starter users keep Lead Lite indicators in `/inbox` only and do not see the Leads nav item.
+
+Phase 5 dashboard polish:
+
+- Primary navigation is simplified for the WhatsApp AI sales assistant workflow: Dashboard, Conversations, Needs Reply, Business Info, Products & Services, FAQs / Knowledge, Test Bot Reply, Bot Settings, Usage, and Leads only when Full Leads is enabled.
+- Legacy CRM routes such as contacts, pipelines, broadcasts, automations, and flows remain in the codebase and are grouped under an "Advanced CRM tools" sidebar disclosure only when `advanced_crm_tools_enabled` is true for a non-Starter account. They are secondary opt-in tools, not part of the default MVP owner workflow.
+- `/usage` gives business users a non-admin view of monthly AI replies, product/service limits, bot status, lead mode, and WhatsApp readiness.
+- `/bot-settings` gives owners/admins the account-wide bot switch plus usage and handoff context.
+- `/needs-reply` lists unread customer chats, AI-paused chats, and buying-intent chats for human follow-up. Starter gets this queue without the Full Leads board.
+- `/settings` includes a concise explanation grid for Profile, WhatsApp, Templates, Tags, Custom Fields, Deals, Appearance, and Members.
+- README plus `docs/QA_CHECKLIST.md`, `docs/FIRST_CLIENT_ONBOARDING.md`, and `docs/PRODUCTION_READINESS.md` document manual testing and first-client onboarding.
+
+Middleware redirects direct visits to advanced CRM pages back to `/dashboard` when the flag is off, and returns `403` for key advanced API routes. Supabase RLS still protects tenant-owned rows; the feature flag controls product release/visibility.
+
+## Public Legal Pages
+
+Phase 5 adds simple editable public pages:
+
+- `/privacy`
+- `/terms`
+- `/data-deletion`
+
+These are placeholders for Meta production setup and should be reviewed by the SaaS operator before public launch.
 
 ## Future Embedded Signup Placeholder
 

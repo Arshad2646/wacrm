@@ -71,6 +71,7 @@ export default async function BusinessInfoPage() {
   if (error) throw error;
 
   const profile = data as BusinessProfile | null;
+  const formKey = profile?.updated_at ?? 'new-business-profile';
 
   return (
     <div className="flex flex-col gap-6">
@@ -91,7 +92,11 @@ export default async function BusinessInfoPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={saveBusinessProfile} className="flex flex-col gap-4">
+          <form
+            key={formKey}
+            action={saveBusinessProfile}
+            className="flex flex-col gap-4"
+          >
             <label className="flex flex-col gap-2 text-sm font-medium text-slate-300">
               Business description
               <Textarea

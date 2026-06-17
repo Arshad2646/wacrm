@@ -113,6 +113,124 @@ npm run dev
 Open <http://localhost:3000>. You'll be redirected to `/login` (or
 `/dashboard` if already signed in).
 
+## Manual SaaS MVP Setup
+
+Use these steps when running this fork as the WhatsApp AI chatbot SaaS
+MVP.
+
+### 1. Install and Configure Supabase
+
+1. Create a Supabase project.
+2. Copy `.env.local.example` to `.env.local`.
+3. Fill:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `ENCRYPTION_KEY`
+   - `META_APP_SECRET`
+4. Link the local Supabase CLI to your project.
+5. Push migrations:
+
+```bash
+supabase db push
+```
+
+If your hosted Supabase project reports a UUID extension error, make sure
+the latest migrations in this repo are present; UUID defaults use
+`extensions.uuid_generate_v4()`.
+
+### 2. Configure Super Admin Access
+
+Add your operator emails to `.env.local`:
+
+```bash
+SUPER_ADMIN_EMAILS=owner@example.com,ops@example.com
+```
+
+Sign in with one of those emails, then open `/super-admin`. This route
+uses server-side checks before service-role access. Do not use a
+`NEXT_PUBLIC_` prefix for this variable.
+
+### 3. Configure AI Provider
+
+For Gemini testing:
+
+```bash
+AI_PROVIDER=gemini
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-2.0-flash
+```
+
+For OpenAI:
+
+```bash
+AI_PROVIDER=openai
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_MODEL=gpt-4.1-mini
+```
+
+AI calls are server-side only. Test safely from `/ai-test` before
+connecting live WhatsApp traffic.
+
+### 4. Configure Meta WhatsApp
+
+In Meta for Developers and WhatsApp Manager, collect:
+
+- WhatsApp phone number ID
+- WABA ID
+- access token
+- webhook verify token
+- Meta app secret
+
+Set the webhook callback URL to:
+
+```text
+https://your-domain.com/api/whatsapp/webhook
+```
+
+For local testing, expose the app with a trusted HTTPS tunnel and use a
+Meta test number or controlled pilot number. Do not invite real customer
+traffic until the QA checklist passes.
+
+### 5. Create and Configure a Business
+
+1. Sign in as super admin and open `/super-admin`.
+2. Create or select a business account.
+3. Set package:
+   - Starter: 1500 replies/month, 20 products/services, Lead Lite.
+   - Growth: 5000 replies/month, 100 products/services, Full Leads.
+   - Custom: manual reply/product limits and lead flags.
+4. Add or confirm WhatsApp settings.
+5. Turn the bot off until business knowledge and tests are ready.
+
+### 6. Add Business Knowledge
+
+Business users maintain their own normal updates:
+
+- `/business-info`: description, location, opening hours, services, delivery, payment, ordering instructions, fallback message, and tone.
+- `/products`: products and services with prices, availability, category, and description.
+- `/knowledge`: FAQs and reusable answers.
+- `/ai-test`: WhatsApp-style test chat using only that account's knowledge.
+- `/usage`: package, AI reply usage, product count, bot status, lead mode, and WhatsApp readiness.
+
+### 7. Test WhatsApp Safely
+
+1. Test price, stock, opening hours, delivery, payment, and ordering in `/ai-test`.
+2. Test unknown products and confirm the bot says the team will confirm.
+3. Test unrelated questions and mixed questions.
+4. Turn the bot on for the pilot account.
+5. Send one controlled WhatsApp message from a staff phone.
+6. Confirm the inbound and outgoing messages appear in `/inbox`.
+7. Confirm `/usage` increments after the successful AI WhatsApp reply.
+8. For Starter, confirm Lead Lite indicators appear in conversations only.
+9. For Growth/Custom Full Leads, confirm `/leads` creates or updates a lead.
+
+More operator docs:
+
+- [`docs/QA_CHECKLIST.md`](./docs/QA_CHECKLIST.md)
+- [`docs/FIRST_CLIENT_ONBOARDING.md`](./docs/FIRST_CLIENT_ONBOARDING.md)
+- [`docs/PRODUCTION_READINESS.md`](./docs/PRODUCTION_READINESS.md)
+
 ## 🚀 Deploy on Hostinger (recommended)
 
 <p align="center">

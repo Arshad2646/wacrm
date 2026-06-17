@@ -5,6 +5,11 @@ export interface ChatPrompt {
   user: string;
 }
 
+export interface ConversationTurn {
+  role: 'customer' | 'assistant';
+  content: string;
+}
+
 function line(label: string, value: string | null | undefined): string {
   const trimmed = value?.trim();
   return trimmed ? `${label}: ${trimmed}` : `${label}: Not provided`;
@@ -87,5 +92,43 @@ ${formatKnowledge(bundle)}
   return {
     system,
     user: customerMessage.trim(),
+  };
+}
+
+export function buildBusinessScopedConversationPrompt(
+  bundle: BusinessKnowledgeBundle,
+  turns: ConversationTurn[]
+): ChatPrompt {
+  const cleanTurns = turns
+    .map((turn) => ({
+      role: turn.role,
+      content: turn.content.trim(),
+    }))
+    .filter((turn) => turn.content.length > 0)
+    .slice(-12);
+  const latestCustomerMessage = [...cleanTurns]
+    .reverse()
+    .find((turn) => turn.role === 'customer')?.content;
+
+  if (!latestCustomerMessage) {
+    throw new Error('Enter a customer message to test.');
+  }
+
+  const prompt = buildBusinessScopedPrompt(bundle, latestCustomerMessage);
+  const transcript = cleanTurns
+    .map((turn) => {
+      const label = turn.role === 'customer' ? 'Customer' : 'Assistant';
+      return `${label}: ${turn.content}`;
+    })
+    .join('\n');
+
+  return {
+    system: prompt.system,
+    user: `
+Conversation so far:
+${transcript}
+
+Reply only to the latest customer message. Use the earlier messages only as conversation context.
+`.trim(),
   };
 }

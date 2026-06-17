@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { getCurrentAccount, requireRole } from '@/lib/auth/account';
 import { hasMinRole } from '@/lib/auth/roles';
 import type { AccountProduct } from '@/lib/knowledge/types';
+import { isProductLimitReached } from '@/lib/saas/product-limits';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -50,7 +51,7 @@ async function createProduct(formData: FormData) {
     .single();
   if (accountError) throw accountError;
 
-  if ((count ?? 0) >= account.product_limit) {
+  if (isProductLimitReached(count ?? 0, account.product_limit)) {
     throw new Error('You have reached your product limit for this package.');
   }
 
@@ -145,7 +146,7 @@ export default async function ProductsPage() {
   const products = (productsResult.data ?? []) as AccountProduct[];
   const productCount = countResult.count ?? products.length;
   const productLimit = accountResult.data.product_limit;
-  const limitReached = productCount >= productLimit;
+  const limitReached = isProductLimitReached(productCount, productLimit);
 
   return (
     <div className="flex flex-col gap-6">

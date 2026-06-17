@@ -11,6 +11,7 @@ import {
   Coins,
   SlidersHorizontal,
 } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useCan } from '@/hooks/use-can';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
@@ -35,6 +36,41 @@ const TAB_VALUES = [
   'members',
 ] as const;
 type TabValue = (typeof TAB_VALUES)[number];
+
+const SETTINGS_HELP = [
+  {
+    title: 'Profile',
+    text: 'Your login profile, password, and active sessions.',
+  },
+  {
+    title: 'WhatsApp',
+    text: 'Cloud API number connection, webhook tokens, and registration checks.',
+  },
+  {
+    title: 'Templates',
+    text: 'Meta-approved outbound message templates for broadcasts and manual sends. Normal inbound AI replies do not need templates.',
+  },
+  {
+    title: 'Tags',
+    text: 'Labels for organizing contacts and conversations, such as VIP, Follow up, or Supplier.',
+  },
+  {
+    title: 'Custom Fields',
+    text: 'Extra contact fields like delivery area, preferred product, budget, or lead source.',
+  },
+  {
+    title: 'Deals',
+    text: 'Legacy CRM deal settings, mainly the default currency used by pipelines and deal totals.',
+  },
+  {
+    title: 'Appearance',
+    text: 'Dashboard theme and visual preferences.',
+  },
+  {
+    title: 'Members',
+    text: 'Invite staff and manage owner, admin, agent, and viewer roles.',
+  },
+];
 
 function isTabValue(v: string | null): v is TabValue {
   return !!v && (TAB_VALUES as readonly string[]).includes(v);
@@ -71,10 +107,23 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-white">Settings</h1>
         <p className="mt-1 text-sm text-slate-400">
-          Manage your profile, WhatsApp® integration, message templates, and
-          tags.
+          Manage account access, WhatsApp setup, templates, contact fields, and
+          CRM preferences.
         </p>
       </div>
+
+      <Card className="border border-slate-800 bg-slate-900">
+        <CardContent className="grid gap-3 pt-4 sm:grid-cols-2 lg:grid-cols-4">
+          {SETTINGS_HELP.map((item) => (
+            <div key={item.title} className="rounded-lg bg-slate-950/60 p-3">
+              <div className="text-sm font-medium text-white">{item.title}</div>
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                {item.text}
+              </p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <Tabs value={tab} onValueChange={(v) => onChange(v as TabValue)}>
         <TabsList className="border border-slate-700 bg-slate-900">

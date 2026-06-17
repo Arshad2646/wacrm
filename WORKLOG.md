@@ -191,3 +191,315 @@ What remains:
 - README setup/admin instructions for applying migrations and testing the WhatsApp AI SaaS flow.
 - Deeper webhook integration tests with mocked Supabase/Meta/AI clients if practical.
 - Real-world tuning of deterministic lead detection after pilot conversations.
+
+## 2026-06-17 14:28 CAT Supabase Migration Fix
+
+What changed:
+
+- Fixed fresh Supabase `db push` failure where `uuid_generate_v4()` was not found because hosted Supabase exposes `uuid-ossp` functions through the `extensions` schema.
+- Added `CREATE SCHEMA IF NOT EXISTS extensions` and installed `uuid-ossp` with `WITH SCHEMA extensions`.
+- Qualified all migration UUID defaults as `extensions.uuid_generate_v4()`.
+
+Files changed:
+
+- `supabase/migrations/001_initial_schema.sql`
+- `supabase/migrations/006_automations.sql`
+- `supabase/migrations/009_message_actions.sql`
+- `supabase/migrations/010_flows.sql`
+- `supabase/migrations/017_account_sharing.sql`
+- `supabase/migrations/023_saas_account_settings.sql`
+- `supabase/migrations/024_business_knowledge_ai_foundation.sql`
+- `supabase/migrations/025_whatsapp_ai_leads.sql`
+- `WORKLOG.md`
+
+Checks run:
+
+- Searched all migrations for `uuid_generate_v4()` usage and confirmed remaining calls are schema-qualified.
+
+What remains:
+
+- User should rerun `supabase db push` against the fresh remote project.
+
+## 2026-06-17 15:05 CAT Business Info Runtime Warning Fix
+
+What changed:
+
+- Fixed Base UI uncontrolled `FieldControl` warning after saving `/business-info` by keying the form on the loaded profile timestamp so inputs remount when server defaults change after revalidation.
+
+Files changed:
+
+- `src/app/(dashboard)/business-info/page.tsx`
+- `WORKLOG.md`
+
+Checks run:
+
+- `npm run typecheck` passed.
+
+What remains:
+
+- User should retry saving business info in the running dev app.
+
+## 2026-06-17 16:12 CAT Pre-Phase 5 Super Admin and AI Test Fixes
+
+What changed:
+
+- Added `/api/super-admin/status` so dashboard chrome can tell the signed-in operator when `SUPER_ADMIN_EMAILS` is active.
+- Surfaced Super Admin mode in the sidebar, header badge, and account dropdown.
+- Expanded `/super-admin` with summary cards, product counts, and a manual business-owner creation form backed by Supabase Admin Auth.
+- Kept privileged super-admin data and writes server-side through `requireSuperAdmin()` and the service-role client.
+- Added transcript-aware business-scoped prompt building for AI test conversations.
+- Added `/api/ai-test/chat` so AI test messages call the provider through a server route.
+- Replaced the single-message `/ai-test` page with a WhatsApp-style local chat simulator that keeps recent context and shows provider/model plus prompt preview.
+
+Files changed:
+
+- `TASKS.md`
+- `DECISIONS.md`
+- `WORKLOG.md`
+- `docs/ARCHITECTURE.md`
+- `src/app/(dashboard)/ai-test/page.tsx`
+- `src/app/(dashboard)/super-admin/page.tsx`
+- `src/app/api/ai-test/chat/route.ts`
+- `src/app/api/super-admin/status/route.ts`
+- `src/components/ai-test/ai-chat-tester.tsx`
+- `src/components/layout/header.tsx`
+- `src/components/layout/sidebar.tsx`
+- `src/hooks/use-auth.tsx`
+- `src/lib/ai/chatbot.ts`
+- `src/lib/ai/prompt.ts`
+- `src/lib/ai/prompt.test.ts`
+- `src/lib/auth/super-admin.ts`
+
+Checks run:
+
+- Read relevant local Next.js 16 route handler docs before adding new route handlers.
+- `npm run typecheck` passed.
+- `npm test -- src/lib/ai/prompt.test.ts` passed.
+- `npm test` passed: 30 files, 411 tests.
+- `npm run lint` passed with the existing 19 warnings.
+- `npm run build` passed with dummy local Supabase/secret env values and approved network access for the Google font fetch.
+- Targeted `npx prettier --write` ran on touched TS/TSX files.
+
+What remains:
+
+- User should restart or let `npm run dev` hot-reload, then confirm `/super-admin` appears in navigation for a `SUPER_ADMIN_EMAILS` user and `/ai-test` behaves as a multi-turn chat.
+- Phase 5 can proceed after this pre-Phase-5 fix is accepted.
+
+## 2026-06-17 16:38 CAT Phase 5 MVP Polish and QA Prep
+
+What changed:
+
+- Simplified the dashboard navigation for the WhatsApp AI chatbot SaaS MVP.
+- Renamed owner-facing labels to Conversations, Products & Services, FAQs / Knowledge, Test Bot Reply, and Usage.
+- Kept Leads visible only for Full-Leads-enabled accounts.
+- Added `/usage` so business users can see their package, monthly AI reply usage, product/service count, bot status, lead mode, and WhatsApp readiness.
+- Updated dashboard quick actions to point at chatbot setup/testing workflows instead of legacy CRM modules.
+- Added public `/privacy`, `/terms`, and `/data-deletion` pages for Meta setup.
+- Added manual QA, production readiness, and first-client onboarding docs.
+- Expanded README setup guidance for Supabase, migrations, super admin access, Gemini/OpenAI, Meta WhatsApp setup, manual onboarding, AI testing, safe WhatsApp testing, usage limits, and Lead Lite vs Full Leads.
+- Added targeted tests for package gates, product limits, and `SUPER_ADMIN_EMAILS` parsing.
+- Recorded Phase 5 decisions and architecture updates.
+
+Files changed:
+
+- `README.md`
+- `TASKS.md`
+- `DECISIONS.md`
+- `WORKLOG.md`
+- `docs/ARCHITECTURE.md`
+- `docs/IMPLEMENTATION_PLAN.md`
+- `docs/QA_CHECKLIST.md`
+- `docs/PRODUCTION_READINESS.md`
+- `docs/FIRST_CLIENT_ONBOARDING.md`
+- `src/app/(dashboard)/dashboard/page.tsx`
+- `src/app/(dashboard)/products/page.tsx`
+- `src/app/(dashboard)/usage/page.tsx`
+- `src/app/privacy/page.tsx`
+- `src/app/terms/page.tsx`
+- `src/app/data-deletion/page.tsx`
+- `src/components/dashboard/quick-actions.tsx`
+- `src/components/layout/header.tsx`
+- `src/components/layout/sidebar.tsx`
+- `src/lib/auth/super-admin.test.ts`
+- `src/lib/saas/packages.test.ts`
+- `src/lib/saas/product-limits.ts`
+- `src/lib/saas/product-limits.test.ts`
+- `src/middleware.ts`
+
+Checks run:
+
+- Targeted `npx prettier --write` ran on touched Markdown/TS/TSX files.
+- `npm run typecheck` passed.
+- `npm run lint` passed with existing warnings only.
+- `npm run test` passed: 33 files, 421 tests.
+- First sandboxed `npm run build` failed because Next/Turbopack could not fetch Google Fonts.
+- Network-approved `npm run build` passed with dummy local Supabase/secret env values.
+- `npm run format:check` still failed because of pre-existing repo-wide formatting differences across many files, including legacy source files and Supabase temp files.
+
+What remains:
+
+- Run `docs/QA_CHECKLIST.md` against a real Supabase project and Meta test WhatsApp number.
+- Onboard the first controlled pilot client with `docs/FIRST_CLIENT_ONBOARDING.md`.
+- Replace/review MVP legal placeholder copy before public production use.
+- Add deeper mocked webhook integration tests if the next phase focuses on hardening.
+
+## 2026-06-17 19:02 CAT Super Admin Package Defaults and Settings Clarity
+
+What changed:
+
+- Fixed existing-account package tier changes in `/super-admin` so Starter/Growth defaults can be applied on save.
+- Added a package-settings resolver that resets reply limits, product/service limits, and lead flags for Starter/Growth while keeping Custom manual.
+- Added tests for package default application and Custom manual behavior.
+- Added explanatory cards to `/settings` for Profile, WhatsApp, Templates, Tags, Custom Fields, Deals, Appearance, and Members.
+- Added an "Advanced CRM tools" disclosure in the sidebar for Contacts, Pipelines, Broadcasts, Automations, and Flows. These modules are still present; they are just secondary to the chatbot SaaS workflow.
+- Updated task, decision, and architecture memory.
+
+Files changed:
+
+- `TASKS.md`
+- `DECISIONS.md`
+- `WORKLOG.md`
+- `docs/ARCHITECTURE.md`
+- `src/app/(dashboard)/super-admin/page.tsx`
+- `src/app/(dashboard)/settings/page.tsx`
+- `src/components/layout/sidebar.tsx`
+- `src/lib/saas/packages.ts`
+- `src/lib/saas/packages.test.ts`
+
+Checks run:
+
+- Targeted `npx prettier --write` ran on touched TS/TSX files.
+- `npm run typecheck` passed.
+- `npm test -- src/lib/saas/packages.test.ts` passed.
+- `npm run lint` passed with existing warnings only.
+- `npm run build` passed with dummy local Supabase/secret env values and approved network access for the Google font fetch.
+
+What remains:
+
+- In the browser, change an existing account from Starter to Growth in `/super-admin` with "Apply selected package defaults" checked, then confirm the row updates to 5000 replies/month, 100 products/services, and Full Leads.
+- For Custom accounts, confirm manual limits remain manual.
+- Test the real WhatsApp webhook once Meta credentials/test number are ready.
+
+## 2026-06-17 19:15 CAT Advanced CRM Tools Release Gate
+
+What changed:
+
+- Added `advanced_crm_tools_enabled` as an account feature flag stored in `accounts.feature_flags`.
+- Added a `/super-admin` checkbox to enable Advanced CRM tools for selected accounts.
+- Forced Advanced CRM tools off for Starter accounts even if the flag is submitted manually.
+- Hid the Advanced CRM tools sidebar group unless the current account is Growth/Custom and the feature flag is enabled.
+- Gated direct page access to Contacts, Pipelines, Broadcasts, Automations, and Flows when the feature is off.
+- Gated key advanced API routes with a `403` response when the feature is off.
+- Added tests for Starter exclusion, default-off Growth/Custom behavior, and explicit Growth/Custom enablement.
+- Updated task, decision, and architecture memory.
+
+Files changed:
+
+- `TASKS.md`
+- `DECISIONS.md`
+- `WORKLOG.md`
+- `docs/ARCHITECTURE.md`
+- `src/app/(dashboard)/super-admin/page.tsx`
+- `src/components/layout/sidebar.tsx`
+- `src/hooks/use-auth.tsx`
+- `src/lib/saas/packages.ts`
+- `src/lib/saas/packages.test.ts`
+- `src/middleware.ts`
+
+Checks run:
+
+- Targeted `npx prettier --write` ran on touched TS/TSX/Markdown files.
+- `npm run typecheck` passed.
+- `npm test -- src/lib/saas/packages.test.ts` passed.
+- `npm run lint` passed with existing warnings only.
+
+What remains:
+
+- In `/super-admin`, enable "Show Advanced CRM tools" only for selected Growth/Custom accounts when ready.
+- Confirm Starter accounts cannot see the sidebar group and are redirected from direct advanced CRM URLs.
+- Run full build before the next deploy.
+
+## 2026-06-17 20:00 CAT Super Admin Businesses Layout Fix
+
+What changed:
+
+- Replaced the wide `/super-admin` Businesses table with one responsive account card per business.
+- Grouped controls into readable sections: Business and package, Usage, WhatsApp, Limits, Feature gates, and collapsible Feature flags JSON.
+- Kept the same server actions and package/feature behavior; this was a layout repair only.
+- Updated task and architecture memory.
+
+Files changed:
+
+- `TASKS.md`
+- `WORKLOG.md`
+- `docs/ARCHITECTURE.md`
+- `src/app/(dashboard)/super-admin/page.tsx`
+
+Checks run:
+
+- Targeted `npx prettier --write` ran on the touched TSX file.
+- `npm run typecheck` passed.
+- `npm run lint` passed with existing warnings only.
+- In-app browser reached `http://localhost:3000/login` when navigating to `/super-admin`, so authenticated visual screenshot validation was blocked by login state.
+- `npm run build` passed with dummy local Supabase/secret env values and approved network access for the Google font fetch.
+
+What remains:
+
+- While signed in as a super admin, visually confirm the Businesses section no longer has the oversized table gaps shown in the screenshot.
+
+## 2026-06-17 20:38 CAT Bot Controls, Human Queue, and Focused Security Review
+
+What changed:
+
+- Added `/bot-settings` for business owner/admin account-wide bot ON/OFF control.
+- Added `/needs-reply` as a simple human-attention queue for unread chats, AI-paused chats, and buying-intent chats.
+- Added `/api/conversations/[id]/bot-pause` so agent+ users can pause/resume AI for a specific conversation.
+- Added inbox Pause/Resume Bot controls and an "AI paused" indicator.
+- Updated successful manual WhatsApp replies and template replies to pause AI for that conversation.
+- Added `canManageAccountBot` role helper and tests.
+- Hardened `/api/whatsapp/send` and `/api/whatsapp/react` so `agent` role is required before Meta API side effects.
+- Hardened `/api/whatsapp/config` POST/DELETE so `admin` role is required before Meta verification, registration/subscription, save, or reset.
+- Narrowed the WhatsApp settings UI query so encrypted access/verify token columns are not selected into browser state.
+- Performed a focused security review of the touched bot controls, WhatsApp send/config routes, RLS/tenant filters, and token exposure paths.
+
+Files changed:
+
+- `TASKS.md`
+- `DECISIONS.md`
+- `WORKLOG.md`
+- `docs/ARCHITECTURE.md`
+- `docs/IMPLEMENTATION_PLAN.md`
+- `src/app/(dashboard)/bot-settings/page.tsx`
+- `src/app/(dashboard)/needs-reply/page.tsx`
+- `src/app/(dashboard)/inbox/page.tsx`
+- `src/app/api/conversations/[id]/bot-pause/route.ts`
+- `src/app/api/whatsapp/send/route.ts`
+- `src/app/api/whatsapp/react/route.ts`
+- `src/app/api/whatsapp/config/route.ts`
+- `src/components/inbox/message-thread.tsx`
+- `src/components/layout/header.tsx`
+- `src/components/layout/sidebar.tsx`
+- `src/components/settings/whatsapp-config.tsx`
+- `src/hooks/use-can.ts`
+- `src/lib/auth/roles.ts`
+- `src/lib/auth/roles.test.ts`
+- `src/lib/ai/whatsapp-bot.test.ts`
+- `src/lib/supabase/admin.ts`
+- `src/middleware.ts`
+
+Checks run:
+
+- Targeted `npx prettier --write` ran on touched TS/TSX/Markdown files.
+- `npm run typecheck` passed.
+- `npm test -- src/lib/auth/roles.test.ts src/lib/ai/whatsapp-bot.test.ts src/lib/saas/packages.test.ts src/lib/leads/detect.test.ts` passed.
+- `npm run lint` passed with 16 existing warnings in legacy/touched-elsewhere files.
+- First sandboxed `npm run build` failed because Turbopack could not fetch the configured Google Font.
+- Network-approved `npm run build` passed.
+- `npm test` passed: 33 files, 429 tests.
+
+What remains:
+
+- Test `/bot-settings`, `/needs-reply`, and inbox Pause/Resume Bot controls while signed into the real Supabase project.
+- Test real WhatsApp inbound flow after manual reply pauses a conversation, then after resuming the bot.
+- Run the existing manual QA checklist with a Meta test WhatsApp number before pilot onboarding.
+- Consider a future defense-in-depth pass for stricter `whatsapp_config` column privileges or a server-only safe config view.
