@@ -104,7 +104,9 @@ Phase 4 extends the existing webhook without rebuilding it:
 10. Generate a strict business-scoped reply through the AI provider adapter.
 11. Save outgoing bot message.
 12. Send reply through WhatsApp Cloud API.
-13. Increment usage only after an AI-generated reply is sent and saved.
+13. Reserve monthly AI usage atomically before provider work and refund the reservation if provider/send/save fails.
+
+Inbound customer messages use Meta `message_id` as an idempotency key within the conversation. Duplicate deliveries are ignored before unread counts, flows, automations, or AI side effects run.
 
 Package rules:
 
@@ -176,6 +178,8 @@ The prompt builder loads only the current account's:
 - active FAQ/knowledge entries
 - package/bot settings
 
+Before provider calls, the prompt builder truncates oversized business fields, product/service fields, FAQ/knowledge fields, transcript turns, and customer messages so one saved knowledge entry cannot create an unbounded token/cost/latency event.
+
 The `/ai-test` page lets a signed-in business user test a local WhatsApp-style conversation against that prompt without sending WhatsApp messages. The browser keeps the temporary transcript, and `/api/ai-test/chat` sends the recent turns to the AI provider through server-side code.
 
 ## Business Knowledge Model
@@ -192,7 +196,7 @@ All three use the existing account tenant model and RLS:
 - Admins can manage the business profile.
 - Agents and above can manage products/services and knowledge entries.
 
-Product/service limits are enforced before insert in the dashboard server action and by the `enforce_account_product_limit` database trigger.
+Product/service limits are enforced before insert in the dashboard server action and by the `enforce_account_product_limit` database trigger. The security hardening migration redefines that trigger to lock the parent account row before counting products, so concurrent inserts for one account cannot race past the configured package limit.
 
 ## Usage Tracking
 
@@ -203,12 +207,16 @@ Phase 2 adds `account_ai_usage_months`:
 - `ai_replies_used`
 - timestamps
 
-Phase 4 adds `increment_account_ai_usage(account_id, month_start)` and now:
+Phase 4 added monthly usage buckets. The security hardening pass adds atomic reservation/refund RPCs, so the current behavior is:
 
 - Count AI replies per business per month.
 - Enforce limits before AI provider calls.
 - Avoid AI provider calls when the account has reached its monthly limit.
-- Increment usage only after a generated AI reply is sent through WhatsApp and saved.
+- Reserve one usage unit atomically before an AI provider call.
+- Refund the reserved unit when provider generation or WhatsApp send/save fails.
+- The `/ai-test` route distinguishes a real limit block from a reservation
+  setup/RPC failure, so missing migrations or service-role configuration do not
+  appear as a false "limit reached" error.
 - Starter default: 1500 AI replies/month.
 - Growth default: 5000 AI replies/month.
 - Custom: super admin manually sets limit.
@@ -293,13 +301,25 @@ Current useful security foundations:
 
 - Supabase RLS is used extensively.
 - Account membership helper `is_account_member` gates data access.
+- Migration `026_security_hardening.sql` adds least-privilege execution grants for account-membership helpers and additional tenant-consistency triggers for cross-table references.
+- Authenticated clients can update only safe profile display columns; `profiles.account_id` and `profiles.account_role` are treated as trusted server/database-managed fields.
 - WhatsApp access and verify tokens are encrypted.
+- Authenticated clients receive only safe `whatsapp_config` metadata columns; encrypted `access_token` and `verify_token` are reserved for service-role server routes after role checks.
 - Webhook POST requests validate Meta signatures using `META_APP_SECRET`.
+- Inbound customer WhatsApp messages are deduplicated by conversation and Meta message id before side effects run.
 - Supabase service-role client is used only server-side for webhook/engine work.
+- Authenticated dashboard/app HTML routes are private `no-store` by default; only known public pages receive short public CDN caching.
 - Manual WhatsApp send/reaction routes require `agent` or higher before any Meta API call.
 - WhatsApp config save/reset requires `admin` or higher before any Meta verification, registration, subscription, save, or reset.
 - Account-wide bot control requires `admin` or higher. Conversation-level bot pause/resume requires `agent` or higher.
 - The WhatsApp settings UI selects only safe metadata columns and does not load encrypted token columns into browser state.
+- Advanced CRM app routes, runtime engines, and RLS policies are gated by `advanced_crm_tools_enabled`; Starter is always blocked.
+- Advanced CRM automation webhook steps require HTTPS public destinations, block local/private/link-local DNS results at runtime, disable redirects, and can be restricted further with `AUTOMATION_WEBHOOK_ALLOWED_HOSTS`.
+- Full Leads app visibility and RLS policies use package-aware gating: Growth is allowed by package, Custom is allowed only when enabled, and Starter is blocked.
+- Staff invitation APIs and invitation redemption are gated so Starter accounts cannot add extra members.
+- Service-role writes in the WhatsApp bot/send/webhook paths are explicitly scoped by `account_id` where practical.
+- AI test chat and inbound WhatsApp AI reserve monthly usage server-side before provider calls, refund failed attempts, and cap prompt/transcript size before provider calls.
+- API routes log detailed Meta/database errors server-side but return generic client-facing errors for provider or persistence failures.
 
 Target security rules:
 

@@ -1,6 +1,7 @@
 import { BarChart3, Bot, CheckCircle2, Package, PlugZap } from 'lucide-react';
 
 import { getCurrentAccount } from '@/lib/auth/account';
+import { accountHasFullLeads } from '@/lib/saas/packages';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -88,7 +89,8 @@ export default async function UsagePage() {
   const whatsapp = waResult.data;
   const usagePercent = percent(repliesUsed, replyLimit);
   const productPercent = percent(productCount, account.product_limit);
-  const leadMode = account.full_leads_enabled
+  const fullLeads = accountHasFullLeads(account);
+  const leadMode = fullLeads
     ? 'Full Leads'
     : account.lead_lite_enabled
       ? 'Lead Lite'

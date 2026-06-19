@@ -41,7 +41,12 @@ needs hardening before broad production use.
 - Rotate a client's WhatsApp token if it may have been exposed.
 - Confirm `ENCRYPTION_KEY` is stable before saving production WhatsApp credentials.
 - Confirm Supabase RLS policies are enabled after migrations.
+- Push and verify `026_security_hardening.sql` so WhatsApp token columns, trusted profile columns, AI usage reservation, serialized product-limit checks, WhatsApp message idempotency, Advanced CRM, Full Leads, staff invites, and tenant-consistency triggers are enforced in the remote database.
+- If production already has duplicate inbound customer Meta message IDs in the same conversation, clean those duplicates before applying the new idempotency unique index.
+- Keep Advanced CRM tools off unless intentionally enabled, and set `AUTOMATION_WEBHOOK_ALLOWED_HOSTS` if customer automation webhooks should be restricted to known providers.
+- Keep private SaaS pages behind `Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate`. The Next config only public-caches known public pages.
 - Use a different Supabase project for local/staging and production.
+- `npm run build` needs network access for the configured Google Font unless the app is switched to a self-hosted/local font.
 
 ## Logging and Monitoring Needed
 

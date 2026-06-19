@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { createServiceRoleClient } from '@/lib/supabase/admin';
 import {
   registerPhoneNumber,
   subscribeWabaToApp,
@@ -9,43 +8,24 @@ import {
 } from '@/lib/whatsapp/meta-api';
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
 
-/**
- * Resolve the caller's account_id from their profile. Inlined here
- * (rather than going through `@/lib/auth/account.getCurrentAccount`)
- * because the GET handler wants to return shaped 200s for every
- * non-auth failure mode, not throw — keeping the helper minimal lets
- * the existing response branches stay as-is.
- *
- * Returns null if the user has no profile or no account; callers
- * should treat that the same as "not connected".
- */
-async function resolveAccountId(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string
-): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('account_id')
-    .eq('user_id', userId)
-    .maybeSingle();
-  if (error || !data?.account_id) return null;
-  return data.account_id as string;
+const MAX_ID_LENGTH = 128;
+const MAX_TOKEN_LENGTH = 8192;
+const MAX_VERIFY_TOKEN_LENGTH = 256;
+
+function cleanOptionalString(value: unknown, maxLength: number) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > maxLength) return undefined;
+  return trimmed;
 }
 
-// Lazy-initialised service-role client. We need it to detect a
-// phone_number_id already claimed by a *different* user — under RLS,
-// the user's own session can't see other users' rows, so the conflict
-// would be invisible without the service role.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _adminClient: any = null;
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-  }
-  return _adminClient;
+function cleanRequiredString(value: unknown, maxLength: number) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > maxLength) return null;
+  return trimmed;
 }
 
 /**
@@ -63,33 +43,12 @@ function supabaseAdmin() {
  */
 export async function GET() {
   try {
-    const supabase = await createClient();
+    const ctx = await requireRole('admin');
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const accountId = await resolveAccountId(supabase, user.id);
-    if (!accountId) {
-      return NextResponse.json(
-        {
-          connected: false,
-          reason: 'no_account',
-          message: 'Your profile is not linked to an account.',
-        },
-        { status: 200 }
-      );
-    }
-
-    const { data: config, error: configError } = await supabase
+    const { data: config, error: configError } = await createServiceRoleClient()
       .from('whatsapp_config')
       .select('phone_number_id, access_token, status')
-      .eq('account_id', accountId)
+      .eq('account_id', ctx.accountId)
       .maybeSingle();
 
     if (configError) {
@@ -153,17 +112,14 @@ export async function GET() {
         {
           connected: false,
           reason: 'meta_api_error',
-          message: `Meta API rejected the credentials: ${message}`,
+          message:
+            'Meta API rejected the credentials. Check the server logs and WhatsApp settings.',
         },
         { status: 200 }
       );
     }
   } catch (error) {
-    console.error('Error in WhatsApp config GET:', error);
-    return NextResponse.json(
-      { connected: false, reason: 'unknown', message: 'Internal server error' },
-      { status: 500 }
-    );
+    return toErrorResponse(error);
   }
 }
 
@@ -176,15 +132,46 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const ctx = await requireRole('admin');
-    const supabase = ctx.supabase;
     const accountId = ctx.accountId;
+    const admin = createServiceRoleClient();
 
-    const body = await request.json();
-    const { phone_number_id, waba_id, access_token, verify_token, pin } = body;
+    const body = (await request.json().catch(() => null)) as Record<
+      string,
+      unknown
+    > | null;
+
+    if (!body || Array.isArray(body)) {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const phone_number_id = cleanRequiredString(
+      body.phone_number_id,
+      MAX_ID_LENGTH
+    );
+    const access_token = cleanRequiredString(
+      body.access_token,
+      MAX_TOKEN_LENGTH
+    );
+    const waba_id = cleanOptionalString(body.waba_id, MAX_ID_LENGTH);
+    const verify_token = cleanOptionalString(
+      body.verify_token,
+      MAX_VERIFY_TOKEN_LENGTH
+    );
+    const pin = body.pin;
 
     if (!access_token || !phone_number_id) {
       return NextResponse.json(
-        { error: 'access_token and phone_number_id are required' },
+        {
+          error:
+            'access_token and phone_number_id are required and must be valid strings',
+        },
+        { status: 400 }
+      );
+    }
+
+    if (waba_id === undefined || verify_token === undefined) {
+      return NextResponse.json(
+        { error: 'waba_id or verify_token has an invalid format' },
         { status: 400 }
       );
     }
@@ -205,7 +192,7 @@ export async function POST(request: Request) {
     // inbound message. See issue #136. Post-multi-user we key on
     // account_id (not user_id) since teammates inside the same account
     // all share one config; the conflict is between accounts.
-    const { data: claimed, error: claimedError } = await supabaseAdmin()
+    const { data: claimed, error: claimedError } = await admin
       .from('whatsapp_config')
       .select('account_id')
       .eq('phone_number_id', phone_number_id)
@@ -242,7 +229,7 @@ export async function POST(request: Request) {
         err instanceof Error ? err.message : 'Unknown Meta API error';
       console.error('Meta API verification failed during save:', message);
       return NextResponse.json(
-        { error: `Meta API error: ${message}` },
+        { error: 'Meta API rejected the WhatsApp credentials.' },
         { status: 400 }
       );
     }
@@ -269,7 +256,7 @@ export async function POST(request: Request) {
     // Look up any pre-existing row for this account so we know whether
     // this number is already registered with Meta — if so we can skip
     // /register when the user didn't provide a PIN this time around.
-    const { data: existing } = await supabase
+    const { data: existing } = await admin
       .from('whatsapp_config')
       .select('id, registered_at, phone_number_id')
       .eq('account_id', accountId)
@@ -365,7 +352,7 @@ export async function POST(request: Request) {
     };
 
     if (existing) {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await admin
         .from('whatsapp_config')
         .update(baseRow)
         .eq('account_id', accountId);
@@ -382,7 +369,7 @@ export async function POST(request: Request) {
       // (NOT NULL post-017, UNIQUE so duplicates trip the constraint
       // up-front), `user_id` is the audit column identifying which
       // member of the account saved the config.
-      const { error: insertError } = await supabase
+      const { error: insertError } = await admin
         .from('whatsapp_config')
         .insert({
           account_id: accountId,
@@ -438,10 +425,9 @@ export async function POST(request: Request) {
 export async function DELETE() {
   try {
     const ctx = await requireRole('admin');
-    const supabase = ctx.supabase;
     const accountId = ctx.accountId;
 
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await createServiceRoleClient()
       .from('whatsapp_config')
       .delete()
       .eq('account_id', accountId);

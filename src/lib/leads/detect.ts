@@ -1,5 +1,8 @@
 import type { AccountProduct } from '@/lib/knowledge/types';
-import type { PackageType } from '@/lib/saas/packages';
+import {
+  accountHasFullLeads,
+  type AccountFeatureGateInput,
+} from '@/lib/saas/packages';
 
 export interface LeadIntent {
   hasIntent: boolean;
@@ -89,11 +92,6 @@ export function detectBuyingIntent(
   };
 }
 
-export function shouldUseFullLeads(account: {
-  package_type: PackageType;
-  full_leads_enabled: boolean;
-}): boolean {
-  if (account.package_type === 'growth') return true;
-  if (account.package_type === 'custom') return account.full_leads_enabled;
-  return false;
+export function shouldUseFullLeads(account: AccountFeatureGateInput): boolean {
+  return accountHasFullLeads(account);
 }

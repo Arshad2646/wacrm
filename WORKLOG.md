@@ -503,3 +503,211 @@ What remains:
 - Test real WhatsApp inbound flow after manual reply pauses a conversation, then after resuming the bot.
 - Run the existing manual QA checklist with a Meta test WhatsApp number before pilot onboarding.
 - Consider a future defense-in-depth pass for stricter `whatsapp_config` column privileges or a server-only safe config view.
+
+## 2026-06-18 13:53 CAT Super Admin Runtime Log Check
+
+What changed:
+
+- Investigated the reported `/super-admin` `ReferenceError: Table is not defined` runtime log.
+- Confirmed the current `src/app/(dashboard)/super-admin/page.tsx` source no longer renders a `Table` at the reported line; line 513 is now the Businesses empty-state check.
+- Fixed a TypeScript type mismatch in the advanced CRM feature-gate helper that was surfaced while running checks.
+- Recorded the stale-error finding in task memory.
+
+Files changed:
+
+- `TASKS.md`
+- `WORKLOG.md`
+- `src/lib/saas/advanced-crm.ts`
+
+Checks run:
+
+- `npm run typecheck` passed.
+
+What remains:
+
+- Reload `/super-admin` while signed in as a super admin. If the old error overlay persists, restart `npm run dev` so Next clears the stale compiled page state.
+
+## 2026-06-18 16:05 CAT Focused Security Hardening Follow-Up
+
+What changed:
+
+- Confirmed the `/super-admin` `Table is not defined` log is stale relative to current source; the page renders account cards now, not a `Table`.
+- Centralized package gates for Full Leads and multiple-user support.
+- Aligned app and database logic so Starter is Lead Lite only, Growth gets Full Leads by package, and Custom uses its manual Full Leads flag.
+- Blocked Starter staff invitations through route-level checks and database helper coverage.
+- Added/updated migration `026_security_hardening.sql` for WhatsApp token column grants, Advanced CRM/Full Leads/staff helper gates, least-privilege function execution, and tenant-consistency triggers.
+- Tightened service-role writes in WhatsApp send/webhook/bot paths with explicit `account_id` filters where practical.
+- Added AI test usage enforcement and transcript caps before provider calls.
+- Hardened sensitive API responses so provider/database details are logged server-side and generic errors are returned to the browser.
+- Updated sidebar/usage/bot-settings/AI-test views to use shared Full Leads package logic.
+- Added security review documentation and targeted tests for package gates, Advanced CRM runtime gates, and SQL hardening.
+
+Files changed:
+
+- `TASKS.md`
+- `DECISIONS.md`
+- `WORKLOG.md`
+- `docs/ARCHITECTURE.md`
+- `docs/PRODUCTION_READINESS.md`
+- `docs/SECURITY_REVIEW.md`
+- `supabase/migrations/026_security_hardening.sql`
+- `src/lib/saas/packages.ts`
+- `src/lib/saas/packages.test.ts`
+- `src/lib/security/security-hardening-sql.test.ts`
+- `src/lib/leads/detect.ts`
+- `src/lib/automations/engine.ts`
+- `src/lib/automations/engine.test.ts`
+- `src/lib/automations/meta-send.ts`
+- `src/lib/flows/engine.ts`
+- `src/lib/flows/meta-send.ts`
+- `src/lib/rate-limit.ts`
+- `src/lib/ai/whatsapp-bot.ts`
+- `src/components/layout/sidebar.tsx`
+- `src/app/(dashboard)/ai-test/page.tsx`
+- `src/app/(dashboard)/bot-settings/page.tsx`
+- `src/app/(dashboard)/usage/page.tsx`
+- `src/app/api/account/invitations/route.ts`
+- `src/app/api/account/invitations/[id]/route.ts`
+- `src/app/api/ai-test/chat/route.ts`
+- `src/app/api/automations/*`
+- `src/app/api/flows/*`
+- `src/app/api/whatsapp/*`
+- `src/components/ai-test/ai-chat-tester.tsx`
+- `src/components/settings/members-tab.tsx`
+
+Checks run:
+
+- Targeted `./node_modules/.bin/prettier --write` ran on touched TS/TSX/test files.
+- `npm run typecheck` passed.
+- `npm test -- src/lib/saas/packages.test.ts src/lib/leads/detect.test.ts src/lib/ai/whatsapp-bot.test.ts src/lib/security/security-hardening-sql.test.ts` passed.
+- `npm run lint` passed with 16 existing warnings.
+- `npm test` passed: 34 files, 439 tests.
+- `npm run format:check` failed because the legacy repo has pre-existing formatting differences across 183 files.
+- `npm run build` failed in the sandbox because Next/Turbopack could not fetch Google Fonts. The network-approved retry could not run because the approval system reported a usage-limit block.
+
+What remains:
+
+- Push/apply `supabase/migrations/026_security_hardening.sql` to the remote Supabase project and verify token column grants/RLS policies there.
+- Run real WhatsApp webhook/manual-send testing with a Meta test number.
+- Re-run `npm run build` in an environment with network access for Google Fonts or switch the app to a local/self-hosted font before deployment.
+- Run a formal exhaustive security audit with coverage artifacts before broad production release.
+
+## 2026-06-19 09:20 CAT Security Scan Fixes
+
+What changed:
+
+- Continued the repository security scan with completed subagent shards for auth/RLS, account APIs, WhatsApp routes, AI usage, and Advanced CRM automation surfaces.
+- Fixed profile trust-column exposure by narrowing authenticated `profiles` writes to display fields only.
+- Added atomic AI usage reservation/refund RPCs and wired `/api/ai-test/chat` plus inbound WhatsApp AI replies to reserve quota before provider calls.
+- Added inbound WhatsApp message idempotency with a unique customer Meta message index and duplicate insert handling before side effects.
+- Hardened Advanced CRM automation webhook steps with HTTPS-only validation, local/private destination blocking, runtime DNS checks, disabled redirects, and optional `AUTOMATION_WEBHOOK_ALLOWED_HOSTS`.
+- Added prompt-size truncation for business profile, products/services, FAQ/knowledge, transcript, and customer-message text.
+- Added targeted security tests for the new database grants, usage reservation, webhook replay handling, automation webhook URL validation, and prompt truncation.
+- Updated security documentation and env examples.
+
+Files changed:
+
+- `.env.local.example`
+- `TASKS.md`
+- `WORKLOG.md`
+- `docs/ARCHITECTURE.md`
+- `docs/SECURITY_REVIEW.md`
+- `supabase/migrations/026_security_hardening.sql`
+- `src/app/api/ai-test/chat/route.ts`
+- `src/app/api/whatsapp/webhook/route.ts`
+- `src/lib/ai/prompt.ts`
+- `src/lib/ai/prompt.test.ts`
+- `src/lib/ai/whatsapp-bot.ts`
+- `src/lib/automations/engine.ts`
+- `src/lib/automations/validate.ts`
+- `src/lib/automations/validate.test.ts`
+- `src/lib/automations/webhook-url.ts`
+- `src/lib/automations/webhook-url.test.ts`
+- `src/lib/security/security-hardening-sql.test.ts`
+- `src/lib/security/service-role-guards.test.ts`
+
+Checks run:
+
+- `npm test -- src/lib/security/security-hardening-sql.test.ts src/lib/security/service-role-guards.test.ts src/lib/automations/webhook-url.test.ts src/lib/automations/validate.test.ts src/lib/ai/prompt.test.ts src/lib/ai/whatsapp-bot.test.ts` passed: 6 files, 44 tests.
+- `npm run typecheck` passed.
+- `npm run lint` passed with 15 existing warnings in legacy UI files.
+- `npm run test` passed: 36 files, 453 tests.
+- Targeted `npx prettier --write` ran on touched migration/TS/test files.
+- Initial sandboxed `npm run build` failed because Google Fonts could not be fetched.
+- Network-approved `npm run build` passed.
+
+What remains:
+
+- Apply `supabase/migrations/026_security_hardening.sql` to the remote Supabase project.
+- If the new WhatsApp idempotency unique index hits existing duplicate inbound customer messages, clean those duplicate rows before pushing the migration.
+- Manually test real Meta webhook delivery, duplicate retry behavior, manual WhatsApp sends, AI provider failure fallback, and bot pause/resume with a Meta test number.
+- Consider setting `AUTOMATION_WEBHOOK_ALLOWED_HOSTS` before enabling Advanced CRM webhook steps for customers.
+
+## 2026-06-19 09:33 CAT Security Scan Final Hardening
+
+What changed:
+
+- Reviewed remaining scan surfaces for client-side secret exposure, storage policy shape, API route gates, package gates, human takeover behavior, webhook verification, and private route caching.
+- Fixed a private-data caching risk by changing Next.js cache headers so dashboard/auth/app HTML routes are `private, no-cache, no-store, max-age=0, must-revalidate` by default.
+- Kept short public CDN caching only for explicitly public pages: `/`, `/privacy`, `/terms`, and `/data-deletion`.
+- Hardened product/service package limits against concurrent direct inserts by redefining `enforce_account_product_limit()` to lock the parent account row before counting products.
+- Added focused regression tests for Next.js cache headers and product-limit trigger serialization.
+- Updated security review, production readiness, architecture, tasks, and decisions docs.
+- Finalized the security scan report artifacts with explicit validation and attack-path receipts for fixed candidates.
+
+Files changed:
+
+- `next.config.ts`
+- `TASKS.md`
+- `DECISIONS.md`
+- `WORKLOG.md`
+- `docs/ARCHITECTURE.md`
+- `docs/PRODUCTION_READINESS.md`
+- `docs/SECURITY_REVIEW.md`
+- `supabase/migrations/026_security_hardening.sql`
+- `src/lib/security/next-cache-headers.test.ts`
+- `src/lib/security/security-hardening-sql.test.ts`
+
+Checks run:
+
+- `npm test -- src/lib/security/next-cache-headers.test.ts src/lib/security/security-hardening-sql.test.ts` passed: 2 files, 11 tests.
+- `npm run typecheck` passed.
+- `npm run lint` passed with 15 existing warnings in legacy UI files.
+- `npm run test` passed: 37 files, 457 tests.
+- `git diff --check` passed.
+- `npm run format:check` failed on 180 pre-existing formatting differences outside the security scope.
+- Sandboxed `npm run build` failed because Google Fonts could not be fetched.
+- Network-approved `npm run build` passed.
+
+What remains:
+
+- Apply `supabase/migrations/026_security_hardening.sql` to the remote Supabase project.
+- Manually verify cache headers on the deployed authenticated pages and test real Meta WhatsApp flows.
+
+## 2026-06-19 20:29 CAT AI Test Usage Error Fix
+
+What changed:
+
+- Fixed `/api/ai-test/chat` so usage reservation setup/RPC failures are reported separately from a real monthly AI limit block.
+- Changed `reserveAccountAiReply` to return a reasoned result for `limit_reached` vs `reservation_error`.
+- Kept inbound WhatsApp AI fail-closed behavior: reservation failures still avoid provider calls and use fallback handling.
+- Added regression coverage for the new reservation result behavior.
+
+Files changed:
+
+- `TASKS.md`
+- `WORKLOG.md`
+- `src/app/api/ai-test/chat/route.ts`
+- `src/lib/ai/whatsapp-bot.ts`
+- `src/lib/ai/whatsapp-bot.test.ts`
+- `src/lib/security/service-role-guards.test.ts`
+
+Checks run:
+
+- `npm run typecheck` passed.
+- `npm test -- src/lib/ai/whatsapp-bot.test.ts src/lib/security/service-role-guards.test.ts` passed: 2 files, 13 tests.
+- Targeted Prettier ran on touched TS/test files.
+
+What remains:
+
+- If the AI test now reports "AI usage check failed," push migration `026_security_hardening.sql` to Supabase and confirm `SUPABASE_SERVICE_ROLE_KEY` is present in the app environment.

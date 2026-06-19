@@ -1,5 +1,6 @@
 import { getCurrentAccount } from '@/lib/auth/account';
 import { loadBusinessKnowledge } from '@/lib/knowledge/load';
+import { accountHasFullLeads } from '@/lib/saas/packages';
 import { AiChatTester } from '@/components/ai-test/ai-chat-tester';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -13,6 +14,7 @@ import {
 export default async function AiTestPage() {
   const ctx = await getCurrentAccount();
   const bundle = await loadBusinessKnowledge(ctx.supabase, ctx.accountId);
+  const fullLeads = accountHasFullLeads(bundle.account);
 
   return (
     <div className="flex flex-col gap-6">
@@ -58,7 +60,7 @@ export default async function AiTestPage() {
           </div>
           <div className="flex items-end gap-2">
             <Badge variant="secondary">{bundle.account.package_type}</Badge>
-            {bundle.account.full_leads_enabled ? (
+            {fullLeads ? (
               <Badge>Full Leads</Badge>
             ) : (
               <Badge variant="outline">Lead Lite</Badge>

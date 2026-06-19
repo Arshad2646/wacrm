@@ -10,6 +10,7 @@ import {
 
 import { getCurrentAccount, requireRole } from '@/lib/auth/account';
 import { canManageAccountBot } from '@/lib/auth/roles';
+import { accountHasFullLeads } from '@/lib/saas/packages';
 import { createServiceRoleClient } from '@/lib/supabase/admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -112,7 +113,8 @@ export default async function BotSettingsPage() {
   const usagePercent = percent(repliesUsed, replyLimit);
   const productCount = productsResult.count ?? 0;
   const needsReplyCount = handoffResult.count ?? 0;
-  const leadMode = account.full_leads_enabled
+  const fullLeads = accountHasFullLeads(account);
+  const leadMode = fullLeads
     ? 'Full Leads'
     : account.lead_lite_enabled
       ? 'Lead Lite'

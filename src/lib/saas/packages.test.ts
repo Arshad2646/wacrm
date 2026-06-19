@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  accountAllowsMultipleUsers,
   accountHasAdvancedCrmTools,
+  accountHasFullLeads,
   ADVANCED_CRM_TOOLS_FEATURE_FLAG,
   PACKAGE_DEFAULTS,
   leadFlagsForPackage,
@@ -151,5 +153,51 @@ describe('accountHasAdvancedCrmTools', () => {
         feature_flags: { [ADVANCED_CRM_TOOLS_FEATURE_FLAG]: true },
       })
     ).toBe(true);
+  });
+});
+
+describe('accountHasFullLeads', () => {
+  it('keeps Starter on Lead Lite even when the row flag is wrong', () => {
+    expect(
+      accountHasFullLeads({
+        package_type: 'starter',
+        full_leads_enabled: true,
+      })
+    ).toBe(false);
+  });
+
+  it('treats Growth as Full Leads by package rule', () => {
+    expect(
+      accountHasFullLeads({
+        package_type: 'growth',
+        full_leads_enabled: false,
+      })
+    ).toBe(true);
+  });
+
+  it('requires Custom to opt into Full Leads', () => {
+    expect(
+      accountHasFullLeads({
+        package_type: 'custom',
+        full_leads_enabled: false,
+      })
+    ).toBe(false);
+    expect(
+      accountHasFullLeads({
+        package_type: 'custom',
+        full_leads_enabled: true,
+      })
+    ).toBe(true);
+  });
+});
+
+describe('accountAllowsMultipleUsers', () => {
+  it('blocks Starter staff invitations', () => {
+    expect(accountAllowsMultipleUsers({ package_type: 'starter' })).toBe(false);
+  });
+
+  it('allows Growth and Custom staff invitations', () => {
+    expect(accountAllowsMultipleUsers({ package_type: 'growth' })).toBe(true);
+    expect(accountAllowsMultipleUsers({ package_type: 'custom' })).toBe(true);
   });
 });

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   decideAiReply,
   isAiUsageLimitReached,
+  reserveAccountAiReply,
   utcMonthStart,
 } from './whatsapp-bot';
 
@@ -83,5 +84,43 @@ describe('decideAiReply', () => {
 describe('utcMonthStart', () => {
   it('returns the first day of the UTC month', () => {
     expect(utcMonthStart(new Date('2026-06-16T22:30:00Z'))).toBe('2026-06-01');
+  });
+});
+
+describe('reserveAccountAiReply', () => {
+  it('distinguishes a real limit block from an RPC/setup failure', async () => {
+    const rpcCalls: unknown[] = [];
+    const supabase = {
+      rpc: async (_name: string, args: unknown) => {
+        rpcCalls.push(args);
+        return { data: false, error: null };
+      },
+    };
+
+    await expect(
+      reserveAccountAiReply(
+        supabase as never,
+        '00000000-0000-0000-0000-000000000001',
+        '2026-06-01',
+        5000
+      )
+    ).resolves.toEqual({ reserved: false, reason: 'limit_reached' });
+    expect(rpcCalls).toHaveLength(1);
+
+    const failingSupabase = {
+      rpc: async () => ({
+        data: null,
+        error: { message: 'function reserve_account_ai_reply does not exist' },
+      }),
+    };
+
+    await expect(
+      reserveAccountAiReply(
+        failingSupabase as never,
+        '00000000-0000-0000-0000-000000000001',
+        '2026-06-01',
+        5000
+      )
+    ).resolves.toEqual({ reserved: false, reason: 'reservation_error' });
   });
 });

@@ -89,7 +89,7 @@ export interface HandleInboundAiReplyInput {
   whatsappAccessToken: string;
 }
 
-async function getRepliesUsed(
+export async function getAccountAiRepliesUsed(
   supabase: SupabaseClient,
   accountId: string,
   monthStart: string
@@ -111,6 +111,7 @@ async function getRepliesUsed(
 
 async function sendAndSaveBotMessage({
   supabase,
+  accountId,
   conversationId,
   phoneNumber,
   text,
@@ -119,6 +120,7 @@ async function sendAndSaveBotMessage({
   contextMessageId,
 }: {
   supabase: SupabaseClient;
+  accountId: string;
   conversationId: string;
   phoneNumber: string;
   text: string;
@@ -160,7 +162,8 @@ async function sendAndSaveBotMessage({
         last_message_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .eq('id', conversationId);
+      .eq('id', conversationId)
+      .eq('account_id', accountId);
 
     if (conversationError) {
       console.error(
@@ -179,7 +182,7 @@ async function sendAndSaveBotMessage({
   }
 }
 
-async function incrementUsage(
+export async function incrementAccountAiUsage(
   supabase: SupabaseClient,
   accountId: string,
   monthStart: string
@@ -191,6 +194,46 @@ async function incrementUsage(
 
   if (error) {
     console.error('[whatsapp-ai] usage increment failed:', error.message);
+  }
+}
+
+export async function reserveAccountAiReply(
+  supabase: SupabaseClient,
+  accountId: string,
+  monthStart: string,
+  monthlyLimit: number
+): Promise<
+  | { reserved: true }
+  | { reserved: false; reason: 'limit_reached' | 'reservation_error' }
+> {
+  const { data, error } = await supabase.rpc('reserve_account_ai_reply', {
+    p_account_id: accountId,
+    p_month_start: monthStart,
+    p_monthly_limit: monthlyLimit,
+  });
+
+  if (error) {
+    console.error('[whatsapp-ai] usage reservation failed:', error.message);
+    return { reserved: false, reason: 'reservation_error' };
+  }
+
+  return data === true
+    ? { reserved: true }
+    : { reserved: false, reason: 'limit_reached' };
+}
+
+export async function refundAccountAiReply(
+  supabase: SupabaseClient,
+  accountId: string,
+  monthStart: string
+): Promise<void> {
+  const { error } = await supabase.rpc('refund_account_ai_reply', {
+    p_account_id: accountId,
+    p_month_start: monthStart,
+  });
+
+  if (error) {
+    console.error('[whatsapp-ai] usage refund failed:', error.message);
   }
 }
 
@@ -298,7 +341,7 @@ export async function handleInboundAiReply(
     }
 
     const monthStart = utcMonthStart();
-    const repliesUsed = await getRepliesUsed(
+    const repliesUsed = await getAccountAiRepliesUsed(
       input.supabase,
       input.accountId,
       monthStart
@@ -315,6 +358,7 @@ export async function handleInboundAiReply(
       if (decision.shouldSendFallback) {
         await sendAndSaveBotMessage({
           supabase: input.supabase,
+          accountId: input.accountId,
           conversationId: input.conversationId,
           phoneNumber: input.phoneNumber,
           text: bundle.profile?.fallback_message || DEFAULT_FALLBACK_MESSAGE,
@@ -323,6 +367,27 @@ export async function handleInboundAiReply(
           contextMessageId: input.inboundMetaMessageId,
         });
       }
+      return;
+    }
+
+    const reservation = await reserveAccountAiReply(
+      input.supabase,
+      input.accountId,
+      monthStart,
+      bundle.account.monthly_ai_reply_limit
+    );
+
+    if (!reservation.reserved) {
+      await sendAndSaveBotMessage({
+        supabase: input.supabase,
+        accountId: input.accountId,
+        conversationId: input.conversationId,
+        phoneNumber: input.phoneNumber,
+        text: bundle.profile?.fallback_message || DEFAULT_FALLBACK_MESSAGE,
+        whatsappPhoneNumberId: input.whatsappPhoneNumberId,
+        whatsappAccessToken: input.whatsappAccessToken,
+        contextMessageId: input.inboundMetaMessageId,
+      });
       return;
     }
 
@@ -344,6 +409,7 @@ export async function handleInboundAiReply(
 
     const sent = await sendAndSaveBotMessage({
       supabase: input.supabase,
+      accountId: input.accountId,
       conversationId: input.conversationId,
       phoneNumber: input.phoneNumber,
       text: replyText,
@@ -353,8 +419,10 @@ export async function handleInboundAiReply(
     });
 
     if (sent && generatedByAi) {
-      await incrementUsage(input.supabase, input.accountId, monthStart);
+      return;
     }
+
+    await refundAccountAiReply(input.supabase, input.accountId, monthStart);
   } catch (error) {
     console.error(
       '[whatsapp-ai] inbound AI handler failed:',

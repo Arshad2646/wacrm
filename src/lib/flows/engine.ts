@@ -40,6 +40,7 @@ import {
   engineSendText,
 } from "./meta-send";
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
+import { hasAdvancedCrmToolsForAccount } from "@/lib/saas/advanced-crm";
 import {
   type CollectInputNodeConfig,
   type ConditionNodeConfig,
@@ -831,6 +832,9 @@ export async function dispatchInboundToFlows(
 ): Promise<DispatchInboundResult> {
   const db = supabaseAdmin();
   try {
+    const enabled = await hasAdvancedCrmToolsForAccount(db, input.accountId);
+    if (!enabled) return { consumed: false, outcome: "no_match" };
+
     const activeRun = await loadActiveRunForContact(
       db,
       input.accountId,

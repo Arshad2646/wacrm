@@ -97,9 +97,9 @@ export async function POST(request: Request) {
     }
 
     // Fetch and decrypt WhatsApp config
-    const { data: config, error: configError } = await supabase
+    const { data: config, error: configError } = await supabaseAdmin()
       .from('whatsapp_config')
-      .select('*')
+      .select('id, phone_number_id, access_token')
       .eq('account_id', accountId)
       .single();
 
@@ -121,7 +121,7 @@ export async function POST(request: Request) {
     // concurrent sends both produce valid GCM ciphertexts of the same
     // plaintext, last write wins.
     if (isLegacyFormat(config.access_token)) {
-      void supabase
+      void supabaseAdmin()
         .from('whatsapp_config')
         .update({ access_token: encrypt(accessToken) })
         .eq('id', config.id)
@@ -263,7 +263,7 @@ export async function POST(request: Request) {
         err instanceof Error ? err.message : 'Unknown Meta API error';
       console.error('Meta API send failed for all variants:', message);
       return NextResponse.json(
-        { error: `Meta API error: ${message}` },
+        { error: 'WhatsApp could not send this message.' },
         { status: 502 }
       );
     }
@@ -278,7 +278,8 @@ export async function POST(request: Request) {
       await supabase
         .from('contacts')
         .update({ phone: workingPhone })
-        .eq('id', contact.id);
+        .eq('id', contact.id)
+        .eq('account_id', accountId);
     }
 
     // Insert message into DB — field names MUST match the messages schema
@@ -304,9 +305,7 @@ export async function POST(request: Request) {
     if (msgError) {
       console.error('Error inserting sent message:', msgError);
       return NextResponse.json(
-        {
-          error: `Message sent to Meta but failed to save to DB: ${msgError.message}`,
-        },
+        { error: 'Message sent to Meta but failed to save locally.' },
         { status: 500 }
       );
     }

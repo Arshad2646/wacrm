@@ -29,6 +29,7 @@ export const ADVANCED_CRM_TOOLS_FEATURE_FLAG = 'advanced_crm_tools_enabled';
 
 export interface AccountFeatureGateInput {
   package_type?: PackageType | null;
+  full_leads_enabled?: boolean | null;
   feature_flags?: Record<string, unknown> | null;
 }
 
@@ -108,4 +109,19 @@ export function accountHasAdvancedCrmTools(
 ) {
   if (!account || account.package_type === 'starter') return false;
   return account.feature_flags?.[ADVANCED_CRM_TOOLS_FEATURE_FLAG] === true;
+}
+
+export function accountHasFullLeads(
+  account: AccountFeatureGateInput | null | undefined
+) {
+  if (!account || account.package_type === 'starter') return false;
+  if (account.package_type === 'growth') return true;
+  return account.full_leads_enabled === true;
+}
+
+export function accountAllowsMultipleUsers(
+  account: AccountFeatureGateInput | null | undefined
+) {
+  if (!account) return false;
+  return account.package_type !== 'starter';
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account'
+import { requireAdvancedCrmTools } from '@/lib/auth/advanced-crm'
+import { toErrorResponse } from '@/lib/auth/account'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import type { AutomationTriggerType } from '@/types'
 
@@ -11,7 +12,7 @@ import type { AutomationTriggerType } from '@/types'
 export async function POST(request: Request) {
   let accountId: string
   try {
-    const ctx = await getCurrentAccount()
+    const ctx = await requireAdvancedCrmTools('agent')
     accountId = ctx.accountId
   } catch (err) {
     return toErrorResponse(err)

@@ -6,7 +6,10 @@ import { useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
 import { useTotalUnread } from '@/hooks/use-total-unread';
-import { accountHasAdvancedCrmTools } from '@/lib/saas/packages';
+import {
+  accountHasAdvancedCrmTools,
+  accountHasFullLeads,
+} from '@/lib/saas/packages';
 import {
   BarChart3,
   Bot,
@@ -143,7 +146,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const totalUnread = useTotalUnread();
   const visibleNavItems = navItems.filter(
     (item) =>
-      (item.href !== '/leads' || account?.full_leads_enabled) &&
+      (item.href !== '/leads' || accountHasFullLeads(account)) &&
       (!item.superAdminOnly || isSuperAdmin)
   );
   const showAdvancedCrmTools = accountHasAdvancedCrmTools(account);

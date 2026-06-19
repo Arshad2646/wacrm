@@ -76,6 +76,39 @@ describe('buildBusinessScopedPrompt', () => {
     expect(prompt.system).toContain('do not guess');
     expect(prompt.system).toContain('buying intent');
   });
+
+  it('truncates oversized business knowledge and customer input before provider calls', () => {
+    const huge = 'A'.repeat(25000);
+    const prompt = buildBusinessScopedPrompt(
+      {
+        ...bundle,
+        profile: {
+          ...bundle.profile!,
+          business_description: huge,
+        },
+        activeProducts: [
+          {
+            ...bundle.activeProducts[0],
+            name: huge,
+            description: huge,
+          },
+        ],
+        activeKnowledgeEntries: [
+          {
+            ...bundle.activeKnowledgeEntries[0],
+            title: huge,
+            content: huge,
+          },
+        ],
+      },
+      huge
+    );
+
+    expect(prompt.user.length).toBeLessThanOrEqual(2000);
+    expect(prompt.system.length).toBeLessThan(10000);
+    expect(prompt.system).toContain('...');
+    expect(prompt.system).not.toContain('A'.repeat(5000));
+  });
 });
 
 describe('buildBusinessScopedConversationPrompt', () => {

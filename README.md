@@ -172,7 +172,19 @@ OPENAI_MODEL=gpt-4.1-mini
 AI calls are server-side only. Test safely from `/ai-test` before
 connecting live WhatsApp traffic.
 
-### 4. Configure Meta WhatsApp
+### 4. Optional Advanced CRM Webhook Allowlist
+
+Advanced CRM automation webhook steps are HTTPS-only and block local/private
+destinations by default. If you want to restrict them to known providers, set:
+
+```bash
+AUTOMATION_WEBHOOK_ALLOWED_HOSTS=hooks.zapier.com,*.make.com
+```
+
+Keep Advanced CRM tools disabled in `/super-admin` until you intentionally want
+a Growth/Custom business to use those tools.
+
+### 5. Configure Meta WhatsApp
 
 In Meta for Developers and WhatsApp Manager, collect:
 
@@ -192,7 +204,7 @@ For local testing, expose the app with a trusted HTTPS tunnel and use a
 Meta test number or controlled pilot number. Do not invite real customer
 traffic until the QA checklist passes.
 
-### 5. Create and Configure a Business
+### 6. Create and Configure a Business
 
 1. Sign in as super admin and open `/super-admin`.
 2. Create or select a business account.
@@ -203,7 +215,7 @@ traffic until the QA checklist passes.
 4. Add or confirm WhatsApp settings.
 5. Turn the bot off until business knowledge and tests are ready.
 
-### 6. Add Business Knowledge
+### 7. Add Business Knowledge
 
 Business users maintain their own normal updates:
 
@@ -213,7 +225,7 @@ Business users maintain their own normal updates:
 - `/ai-test`: WhatsApp-style test chat using only that account's knowledge.
 - `/usage`: package, AI reply usage, product count, bot status, lead mode, and WhatsApp readiness.
 
-### 7. Test WhatsApp Safely
+### 8. Test WhatsApp Safely
 
 1. Test price, stock, opening hours, delivery, payment, and ordering in `/ai-test`.
 2. Test unknown products and confirm the bot says the team will confirm.

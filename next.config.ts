@@ -1,4 +1,4 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 /**
  * Baseline security headers applied to every response.
@@ -18,18 +18,18 @@ import type { NextConfig } from "next";
  */
 const SECURITY_HEADERS = [
   {
-    key: "Strict-Transport-Security",
-    value: "max-age=63072000; includeSubDomains; preload",
+    key: 'Strict-Transport-Security',
+    value: 'max-age=63072000; includeSubDomains; preload',
   },
-  { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "X-Frame-Options", value: "DENY" },
-  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   {
-    key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    key: 'Permissions-Policy',
+    value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
   },
   {
-    key: "Content-Security-Policy-Report-Only",
+    key: 'Content-Security-Policy-Report-Only',
     value: [
       "default-src 'self'",
       // Next.js needs 'unsafe-inline' for its inline hydration script
@@ -49,7 +49,21 @@ const SECURITY_HEADERS = [
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
-    ].join("; "),
+    ].join('; '),
+  },
+] as const;
+
+const PRIVATE_NO_STORE_HEADERS = [
+  {
+    key: 'Cache-Control',
+    value: 'private, no-cache, no-store, max-age=0, must-revalidate',
+  },
+] as const;
+
+const PUBLIC_PAGE_CACHE_HEADERS = [
+  {
+    key: 'Cache-Control',
+    value: 'public, max-age=0, s-maxage=300, stale-while-revalidate=86400',
   },
 ] as const;
 
@@ -72,19 +86,13 @@ const nextConfig: NextConfig = {
    *     the correct production headers for hashed assets.
    *   - /api/*          — no-store. API responses are per-user and
    *     must never be shared across requests at the edge.
-   *   - Everything else — public, brief s-maxage + generous
-   *     stale-while-revalidate. The edge serves instantly from cache
-   *     for the first 5 min, then returns cached content while
-   *     refreshing in the background for up to 24 h. A deploy's
-   *     chunk-hash drift self-heals within ~5 min with no user-
-   *     visible latency.
-   *
-   *   Note: dynamic dashboard routes (/inbox, /contacts, /pipelines,
-   *   /broadcasts, etc.) are server-rendered per request — Next.js
-   *   and Supabase auth already prevent them from being served
-   *   from a shared cache. The s-maxage here is a ceiling; Next.js
-   *   and auth middleware still set `private` / `no-store` for
-   *   per-user responses.
+   *   - HTML/app routes — private no-store by default. Dashboard and
+   *     auth pages are tenant/user-specific in a SaaS app, so we do
+   *     not allow shared CDN caching to override Next's dynamic route
+   *     protections.
+   *   - Public marketing/legal pages — public, brief s-maxage +
+   *     generous stale-while-revalidate. These are safe to edge-cache
+   *     and still self-heal stale chunk references quickly.
    *
    * Security headers are appended via a separate catch-all rule
    * below — Next.js merges headers from every matching rule, so
@@ -94,24 +102,34 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/api/:path*",
-        headers: [{ key: "Cache-Control", value: "no-store" }],
+        source: '/api/:path*',
+        headers: [...PRIVATE_NO_STORE_HEADERS],
       },
       {
-        source: "/:path((?!_next/static|_next/image|api).*)",
-        headers: [
-          {
-            key: "Cache-Control",
-            value:
-              "public, max-age=0, s-maxage=300, stale-while-revalidate=86400",
-          },
-        ],
+        source: '/:path((?!_next/static|_next/image|api).*)',
+        headers: [...PRIVATE_NO_STORE_HEADERS],
+      },
+      {
+        source: '/',
+        headers: [...PUBLIC_PAGE_CACHE_HEADERS],
+      },
+      {
+        source: '/privacy',
+        headers: [...PUBLIC_PAGE_CACHE_HEADERS],
+      },
+      {
+        source: '/terms',
+        headers: [...PUBLIC_PAGE_CACHE_HEADERS],
+      },
+      {
+        source: '/data-deletion',
+        headers: [...PUBLIC_PAGE_CACHE_HEADERS],
       },
       {
         // Security headers on every response, including /_next/static
         // assets (nosniff matters there) and /api/* (HSTS + referrer-
         // policy don't hurt).
-        source: "/:path*",
+        source: '/:path*',
         headers: [...SECURITY_HEADERS],
       },
     ];

@@ -10,9 +10,33 @@ export interface ConversationTurn {
   content: string;
 }
 
+const MAX_FIELD_CHARS = 800;
+const MAX_CUSTOMER_MESSAGE_CHARS = 2000;
+const MAX_TRANSCRIPT_TURN_CHARS = 1200;
+const MAX_PRODUCTS_SECTION_CHARS = 12000;
+const MAX_KNOWLEDGE_SECTION_CHARS = 12000;
+
+function truncateText(value: string, maxChars: number): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  return `${trimmed.slice(0, Math.max(0, maxChars - 3)).trimEnd()}...`;
+}
+
 function line(label: string, value: string | null | undefined): string {
-  const trimmed = value?.trim();
+  const trimmed = value ? truncateText(value, MAX_FIELD_CHARS) : '';
   return trimmed ? `${label}: ${trimmed}` : `${label}: Not provided`;
+}
+
+function addWithBudget(
+  parts: string[],
+  next: string,
+  maxChars: number
+): boolean {
+  const currentLength = parts.join('\n\n').length;
+  const separatorLength = parts.length === 0 ? 0 : 2;
+  if (currentLength + separatorLength + next.length > maxChars) return false;
+  parts.push(next);
+  return true;
 }
 
 function formatProducts(bundle: BusinessKnowledgeBundle): string {
@@ -20,17 +44,25 @@ function formatProducts(bundle: BusinessKnowledgeBundle): string {
     return 'No active products/services have been added.';
   }
 
-  return bundle.activeProducts
-    .map((product, index) => {
-      return [
-        `${index + 1}. ${product.name}`,
-        line('Price', product.price_text),
-        line('Availability', product.availability_text),
-        line('Category', product.category),
-        line('Description', product.description),
-      ].join('\n');
-    })
-    .join('\n\n');
+  const parts: string[] = [];
+  for (const [index, product] of bundle.activeProducts.entries()) {
+    const next = [
+      `${index + 1}. ${truncateText(product.name, MAX_FIELD_CHARS)}`,
+      line('Price', product.price_text),
+      line('Availability', product.availability_text),
+      line('Category', product.category),
+      line('Description', product.description),
+    ].join('\n');
+
+    if (!addWithBudget(parts, next, MAX_PRODUCTS_SECTION_CHARS)) {
+      parts.push(
+        'Additional products/services were omitted to keep the prompt concise.'
+      );
+      break;
+    }
+  }
+
+  return parts.join('\n\n');
 }
 
 function formatKnowledge(bundle: BusinessKnowledgeBundle): string {
@@ -38,15 +70,23 @@ function formatKnowledge(bundle: BusinessKnowledgeBundle): string {
     return 'No active FAQs or knowledge entries have been added.';
   }
 
-  return bundle.activeKnowledgeEntries
-    .map((entry, index) => {
-      return [
-        `${index + 1}. ${entry.title}`,
-        line('Category', entry.category),
-        `Answer: ${entry.content}`,
-      ].join('\n');
-    })
-    .join('\n\n');
+  const parts: string[] = [];
+  for (const [index, entry] of bundle.activeKnowledgeEntries.entries()) {
+    const next = [
+      `${index + 1}. ${truncateText(entry.title, MAX_FIELD_CHARS)}`,
+      line('Category', entry.category),
+      `Answer: ${truncateText(entry.content, MAX_FIELD_CHARS)}`,
+    ].join('\n');
+
+    if (!addWithBudget(parts, next, MAX_KNOWLEDGE_SECTION_CHARS)) {
+      parts.push(
+        'Additional FAQs/knowledge entries were omitted to keep the prompt concise.'
+      );
+      break;
+    }
+  }
+
+  return parts.join('\n\n');
 }
 
 export function buildBusinessScopedPrompt(
@@ -91,7 +131,7 @@ ${formatKnowledge(bundle)}
 
   return {
     system,
-    user: customerMessage.trim(),
+    user: truncateText(customerMessage, MAX_CUSTOMER_MESSAGE_CHARS),
   };
 }
 
@@ -102,7 +142,7 @@ export function buildBusinessScopedConversationPrompt(
   const cleanTurns = turns
     .map((turn) => ({
       role: turn.role,
-      content: turn.content.trim(),
+      content: truncateText(turn.content, MAX_TRANSCRIPT_TURN_CHARS),
     }))
     .filter((turn) => turn.content.length > 0)
     .slice(-12);

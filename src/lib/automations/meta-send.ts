@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
@@ -57,6 +58,25 @@ type SendInput =
   | (SendTextArgs & { kind: 'text' })
   | (SendTemplateArgs & { kind: 'template' })
 
+async function assertConversationForAccount(
+  db: SupabaseClient,
+  accountId: string,
+  conversationId: string,
+  contactId: string,
+) {
+  const { data, error } = await db
+    .from('conversations')
+    .select('id')
+    .eq('id', conversationId)
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .maybeSingle()
+
+  if (error || !data) {
+    throw new Error('conversation not found for this account')
+  }
+}
+
 async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: string }> {
   const db = supabaseAdmin()
 
@@ -78,6 +98,13 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
     throw new Error('contact not found for this account')
   }
 
+  await assertConversationForAccount(
+    db,
+    input.accountId,
+    input.conversationId,
+    input.contactId,
+  )
+
   const sanitized = sanitizePhoneForMeta(contact.phone)
   if (!isValidE164(sanitized)) {
     throw new Error(`contact phone invalid: ${contact.phone}`)
@@ -85,7 +112,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
 
   const { data: config, error: configErr } = await db
     .from('whatsapp_config')
-    .select('*')
+    .select('phone_number_id, access_token')
     .eq('account_id', input.accountId)
     .single()
   if (configErr || !config) {
@@ -137,7 +164,11 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   if (lastError) throw lastError
 
   if (workingPhone !== sanitized) {
-    await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
+    await db
+      .from('contacts')
+      .update({ phone: workingPhone })
+      .eq('id', contact.id)
+      .eq('account_id', input.accountId)
   }
 
   // Persist the sent message so it appears in the inbox with a real
@@ -171,6 +202,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
       updated_at: new Date().toISOString(),
     })
     .eq('id', input.conversationId)
+    .eq('account_id', input.accountId)
 
   return { whatsapp_message_id: waMessageId }
 }

@@ -29,7 +29,6 @@ export function AiChatTester({ businessName }: AiChatTesterProps) {
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
   const [providerLabel, setProviderLabel] = useState<string | null>(null);
-  const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   const apiMessages = useMemo(
@@ -66,7 +65,6 @@ export function AiChatTester({ businessName }: AiChatTesterProps) {
         reply?: string;
         provider?: string;
         model?: string;
-        systemPrompt?: string;
         error?: string;
       };
 
@@ -85,7 +83,6 @@ export function AiChatTester({ businessName }: AiChatTesterProps) {
       setProviderLabel(
         [payload.provider, payload.model].filter(Boolean).join(' / ')
       );
-      setSystemPrompt(payload.systemPrompt ?? null);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'AI chat test failed';
@@ -129,7 +126,6 @@ export function AiChatTester({ businessName }: AiChatTesterProps) {
             onClick={() => {
               setMessages([]);
               setProviderLabel(null);
-              setSystemPrompt(null);
               setDraft('');
             }}
             disabled={loading && messages.length === 0}
@@ -243,17 +239,12 @@ export function AiChatTester({ businessName }: AiChatTesterProps) {
         </div>
 
         <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-          <h3 className="text-sm font-semibold text-white">Prompt Preview</h3>
-          {systemPrompt ? (
-            <pre className="mt-3 max-h-[460px] overflow-auto rounded-md border border-slate-800 bg-slate-950 p-3 text-xs whitespace-pre-wrap text-slate-300">
-              {systemPrompt}
-            </pre>
-          ) : (
-            <p className="mt-2 text-sm text-slate-500">
-              The business-scoped system prompt appears here after the first
-              test reply.
-            </p>
-          )}
+          <h3 className="text-sm font-semibold text-white">Security Note</h3>
+          <p className="mt-2 text-sm text-slate-500">
+            Test replies use this account&apos;s business info, products, and
+            FAQs through a server-side prompt. Prompt internals and provider
+            keys are not exposed in the browser.
+          </p>
         </div>
       </aside>
     </div>

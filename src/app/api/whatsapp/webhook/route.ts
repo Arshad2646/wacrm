@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption';
-import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api';
+import { getMediaUrl } from '@/lib/whatsapp/meta-api';
 import { normalizePhone } from '@/lib/whatsapp/phone-utils';
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe';
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature';
@@ -240,7 +240,7 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
       // before the constraint, or a race, would still surface here.
       const { data: configRows, error: configError } = await supabaseAdmin()
         .from('whatsapp_config')
-        .select('*')
+        .select('account_id, user_id, phone_number_id, access_token')
         .eq('phone_number_id', phoneNumberId);
 
       if (configError) {
@@ -639,6 +639,10 @@ async function processMessage(
     .single();
 
   if (msgError) {
+    if (isUniqueViolation(msgError)) {
+      console.info('[webhook] duplicate inbound message ignored:', message.id);
+      return;
+    }
     console.error('Error inserting message:', msgError);
     return;
   }
@@ -652,7 +656,8 @@ async function processMessage(
       unread_count: (conversation.unread_count || 0) + 1,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', conversation.id);
+    .eq('id', conversation.id)
+    .eq('account_id', accountId);
 
   if (convError) {
     console.error('Error updating conversation:', convError);
@@ -940,7 +945,8 @@ async function findOrCreateContact(
       await supabaseAdmin()
         .from('contacts')
         .update({ name, updated_at: new Date().toISOString() })
-        .eq('id', existingContact.id);
+        .eq('id', existingContact.id)
+        .eq('account_id', accountId);
     }
     return { contact: existingContact, wasCreated: false };
   }

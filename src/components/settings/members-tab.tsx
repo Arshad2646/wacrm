@@ -139,7 +139,9 @@ function fmtExpiresIn(iso: string): string {
 }
 
 export function MembersTab() {
-  const { user, canManageMembers } = useAuth();
+  const { user, account, canManageMembers } = useAuth();
+  const canInviteMembers =
+    canManageMembers && account?.package_type !== 'starter';
 
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -302,15 +304,17 @@ export function MembersTab() {
             teammate can do.
           </p>
         </div>
-        <RequireRole min="admin">
-          <Button
-            onClick={() => setInviteOpen(true)}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
-          >
-            <Plus className="size-4" />
-            Invite member
-          </Button>
-        </RequireRole>
+        {canInviteMembers ? (
+          <RequireRole min="admin">
+            <Button
+              onClick={() => setInviteOpen(true)}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              <Plus className="size-4" />
+              Invite member
+            </Button>
+          </RequireRole>
+        ) : null}
       </div>
 
       {/* Roster */}

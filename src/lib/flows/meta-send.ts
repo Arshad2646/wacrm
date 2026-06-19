@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   sendInteractiveButtons,
   sendInteractiveList,
@@ -45,6 +46,25 @@ interface SendTextEngineArgs {
   text: string
 }
 
+async function assertConversationForAccount(
+  db: SupabaseClient,
+  accountId: string,
+  conversationId: string,
+  contactId: string,
+) {
+  const { data, error } = await db
+    .from('conversations')
+    .select('id')
+    .eq('id', conversationId)
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .maybeSingle()
+
+  if (error || !data) {
+    throw new Error('conversation not found for this account')
+  }
+}
+
 /**
  * Send a plain-text WhatsApp message from the Flows engine.
  *
@@ -72,6 +92,13 @@ export async function engineSendText(
     throw new Error('contact not found for this account')
   }
 
+  await assertConversationForAccount(
+    db,
+    args.accountId,
+    args.conversationId,
+    args.contactId,
+  )
+
   const sanitized = sanitizePhoneForMeta(contact.phone)
   if (!isValidE164(sanitized)) {
     throw new Error(`contact phone invalid: ${contact.phone}`)
@@ -79,7 +106,7 @@ export async function engineSendText(
 
   const { data: config, error: configErr } = await db
     .from('whatsapp_config')
-    .select('*')
+    .select('phone_number_id, access_token')
     .eq('account_id', args.accountId)
     .single()
   if (configErr || !config) {
@@ -117,7 +144,11 @@ export async function engineSendText(
   if (lastError) throw lastError
 
   if (workingPhone !== sanitized) {
-    await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
+    await db
+      .from('contacts')
+      .update({ phone: workingPhone })
+      .eq('id', contact.id)
+      .eq('account_id', args.accountId)
   }
 
   const { error: msgErr } = await db.from('messages').insert({
@@ -140,6 +171,7 @@ export async function engineSendText(
       updated_at: new Date().toISOString(),
     })
     .eq('id', args.conversationId)
+    .eq('account_id', args.accountId)
 
   return { whatsapp_message_id: waMessageId }
 }
@@ -181,6 +213,13 @@ export async function engineSendMedia(
     throw new Error('contact not found for this account')
   }
 
+  await assertConversationForAccount(
+    db,
+    args.accountId,
+    args.conversationId,
+    args.contactId,
+  )
+
   const sanitized = sanitizePhoneForMeta(contact.phone)
   if (!isValidE164(sanitized)) {
     throw new Error(`contact phone invalid: ${contact.phone}`)
@@ -188,7 +227,7 @@ export async function engineSendMedia(
 
   const { data: config, error: configErr } = await db
     .from('whatsapp_config')
-    .select('*')
+    .select('phone_number_id, access_token')
     .eq('account_id', args.accountId)
     .single()
   if (configErr || !config) {
@@ -229,7 +268,11 @@ export async function engineSendMedia(
   if (lastError) throw lastError
 
   if (workingPhone !== sanitized) {
-    await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
+    await db
+      .from('contacts')
+      .update({ phone: workingPhone })
+      .eq('id', contact.id)
+      .eq('account_id', args.accountId)
   }
 
   // content_type='image'|'video'|'document' — these are already in the
@@ -257,6 +300,7 @@ export async function engineSendMedia(
       updated_at: new Date().toISOString(),
     })
     .eq('id', args.conversationId)
+    .eq('account_id', args.accountId)
 
   return { whatsapp_message_id: waMessageId }
 }
@@ -333,6 +377,13 @@ async function sendInteractiveViaMeta(
     throw new Error('contact not found for this account')
   }
 
+  await assertConversationForAccount(
+    db,
+    input.accountId,
+    input.conversationId,
+    input.contactId,
+  )
+
   const sanitized = sanitizePhoneForMeta(contact.phone)
   if (!isValidE164(sanitized)) {
     throw new Error(`contact phone invalid: ${contact.phone}`)
@@ -340,7 +391,7 @@ async function sendInteractiveViaMeta(
 
   const { data: config, error: configErr } = await db
     .from('whatsapp_config')
-    .select('*')
+    .select('phone_number_id, access_token')
     .eq('account_id', input.accountId)
     .single()
   if (configErr || !config) {
@@ -397,7 +448,11 @@ async function sendInteractiveViaMeta(
   if (lastError) throw lastError
 
   if (workingPhone !== sanitized) {
-    await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
+    await db
+      .from('contacts')
+      .update({ phone: workingPhone })
+      .eq('id', contact.id)
+      .eq('account_id', input.accountId)
   }
 
   // Persist the bot's prompt to the messages table so it appears in
@@ -429,6 +484,7 @@ async function sendInteractiveViaMeta(
       updated_at: new Date().toISOString(),
     })
     .eq('id', input.conversationId)
+    .eq('account_id', input.accountId)
 
   return { whatsapp_message_id: waMessageId }
 }

@@ -54,6 +54,22 @@
 - Confirmed package usage limit logic blocks AI calls before provider calls when monthly limits are reached.
 - Hardened WhatsApp send, reaction, and config mutation routes so role checks happen before Meta API side effects.
 - Stopped the WhatsApp settings UI from selecting encrypted access/verify token columns into browser state.
+- Verified the reported `/super-admin` `Table is not defined` runtime error is stale relative to the current source: the page no longer renders a `Table` at that line and `npm run typecheck` passes.
+- Fixed the advanced CRM feature-gate helper type so `npm run typecheck` passes after the stale `/super-admin` log check.
+- Added focused security hardening for package/feature gates, staff invites, WhatsApp token column privileges, Advanced CRM/Full Leads RLS gates, tenant-consistency triggers, service-role writes, AI test usage limits, and generic client-facing API errors.
+- Centralized Full Leads and multiple-user package checks so Starter cannot receive Full Leads or staff invites through direct API calls, Growth receives Full Leads by package, and Custom uses its manual flag.
+- Added targeted security tests for package gates, automations Advanced CRM gating, WhatsApp token grants, Full Leads/staff DB helpers, and tenant-consistency trigger coverage.
+- Completed a subagent-backed security review of auth/RLS, account APIs, WhatsApp routes, AI usage, and Advanced CRM automation surfaces.
+- Fixed profile trust-column privileges so authenticated clients cannot directly self-edit `profiles.account_id` or `profiles.account_role`.
+- Added atomic AI usage reservation/refund RPCs and wired `/api/ai-test/chat` plus inbound WhatsApp AI replies to reserve before provider calls.
+- Added inbound WhatsApp message idempotency so duplicate Meta deliveries do not rerun unread-count, flow, automation, or AI side effects.
+- Hardened Advanced CRM automation webhook steps against SSRF with HTTPS-only validation, local/private destination blocking, runtime DNS checks, disabled redirects, and optional `AUTOMATION_WEBHOOK_ALLOWED_HOSTS`.
+- Added prompt-size truncation for business profile, products/services, FAQ/knowledge, transcript, and customer-message text before AI provider calls.
+- Added targeted tests for profile privilege grants, usage reservation, webhook replay handling, automation webhook URL validation, and prompt truncation.
+- Fixed private-route caching so dashboard/auth/app HTML routes are `private, no-cache, no-store` by default and only known public pages receive short public CDN caching.
+- Serialized product/service package-limit enforcement by locking the parent account row in the product-limit trigger before counting existing products.
+- Added focused tests for Next.js cache headers and serialized product-limit SQL hardening.
+- Fixed `/ai-test` usage-limit error handling so a Supabase RPC/setup failure is no longer shown as "Monthly AI reply limit reached."
 
 ## In Progress
 
@@ -68,13 +84,19 @@
 - After changing an existing account's package in `/super-admin`, confirm `/usage`, `/products`, and `/leads` reflect the new limits and feature gates.
 - For Growth/Custom accounts, enable "Show Advanced CRM tools" in `/super-admin` only when you intentionally want those users to see Contacts, Pipelines, Broadcasts, Automations, and Flows.
 - Visually confirm the new `/super-admin` Businesses card layout while signed in as a super admin.
+- If the old `/super-admin` `Table is not defined` overlay persists in the browser after reload, restart `npm run dev` to clear the stale compiled page state.
 - Test `/bot-settings`, `/needs-reply`, and inbox Pause/Resume Bot controls against the real Supabase project.
 - Test real inbound WhatsApp behavior after a manual reply pauses a conversation, then after resuming the bot.
+- Apply `supabase/migrations/026_security_hardening.sql` to the real Supabase project and verify RLS/column privileges there.
+- If `/ai-test` shows "AI usage check failed," verify `supabase/migrations/026_security_hardening.sql` has been pushed and `SUPABASE_SERVICE_ROLE_KEY` is set on the running app.
+- If `supabase db push` reports duplicate inbound customer message IDs, clean those duplicate rows before applying the new WhatsApp idempotency unique index.
+- Consider setting `AUTOMATION_WEBHOOK_ALLOWED_HOSTS` before enabling Advanced CRM webhook steps for customers.
+- Confirm deployed responses for `/dashboard`, `/inbox`, `/super-admin`, and other authenticated pages include private no-store cache headers after deployment.
 
 ## Blocked
 
-- Repo-wide `npm run format:check` reports pre-existing formatting differences across many files, including legacy app files and `supabase/.temp/linked-project.json`. Touched Markdown/TS/TSX files were formatted with targeted Prettier.
-- The first sandboxed `npm run build` failed because Next/Turbopack could not fetch the configured Google Font. The same build passed after rerunning with network access.
+- Repo-wide `npm run format:check` reports pre-existing formatting differences across 180 files, including legacy app files and `supabase/.temp/linked-project.json`. Touched Markdown/TS/TSX files were formatted with targeted Prettier.
+- The sandboxed `npm run build` cannot fetch the configured Google Font without network access. The network-approved build passed.
 
 ## Risks
 
@@ -89,5 +111,6 @@
 - Public legal pages are MVP placeholders and need operator/legal review before production use.
 - The MVP still relies on manual onboarding; Embedded Signup and billing are intentionally not implemented.
 - Advanced CRM tools remain broader than the core chatbot MVP and are intentionally opt-in for selected non-Starter accounts only.
-- This session performed a focused security review of auth, bot controls, WhatsApp send/config routes, tenant filters, and token exposure. A formal repository-wide security audit with subagent coverage artifacts has not been run.
-- `whatsapp_config` tokens are encrypted and no longer selected by the normal settings UI, but a future hardening pass should consider a safe server-only config view or stricter column privileges if direct Supabase client access by advanced users is in scope.
+- `whatsapp_config` tokens are encrypted, no longer selected by the normal settings UI, and migration `026_security_hardening.sql` narrows authenticated column privileges. Verify these privileges on the remote Supabase project after pushing migrations.
+- The new WhatsApp idempotency unique index can fail to apply if the existing remote database already has duplicate inbound customer messages in the same conversation.
+- Advanced CRM webhook steps are intentionally powerful. Keep the Advanced CRM flag off by default and use `AUTOMATION_WEBHOOK_ALLOWED_HOSTS` when enabling webhook steps for customers.

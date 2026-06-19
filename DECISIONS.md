@@ -191,3 +191,51 @@ Routes that can send to Meta or mutate WhatsApp credentials must check account r
 ### Browser UI Should Not Select Token Columns
 
 The WhatsApp settings UI must load only safe WhatsApp metadata columns. Encrypted `access_token` and `verify_token` values should stay server-side and be used through protected route handlers.
+
+## 2026-06-18 Focused Security Hardening
+
+### Package Gates Use Shared Helpers
+
+Full Leads and multiple-user access are now resolved through shared package helpers. Starter is always Lead Lite only and cannot invite staff. Growth receives Full Leads by package rule. Custom receives Full Leads only when `full_leads_enabled` is true.
+
+### Sensitive WhatsApp Columns Are Server-Only At The Database Grant Layer
+
+Migration `026_security_hardening.sql` revokes broad authenticated access to `whatsapp_config` and grants ordinary authenticated clients only safe metadata columns. Server routes that need encrypted tokens use the service-role client after account role checks.
+
+### Advanced CRM And Full Leads Are Enforced In App And RLS
+
+Advanced CRM routes and engines require the account feature flag in application code. Migration `026_security_hardening.sql` also adds database helper policies for Advanced CRM and Full Leads so direct Supabase access cannot expose disabled product surfaces.
+
+### Client Errors Should Not Expose Provider Or Database Details
+
+Routes that call Meta or write service-role data should log detailed provider/database errors server-side and return generic client-facing errors. This reduces accidental leakage of implementation details while preserving operator debugging in logs.
+
+## 2026-06-19 Security Scan Fixes
+
+### Profile Account And Role Fields Are Trusted Server State
+
+`profiles.account_id` and `profiles.account_role` are trusted by `getCurrentAccount()`, route role checks, and RLS helper functions. Browser-authenticated clients may update only profile display fields (`full_name`, `avatar_url`). Account/role moves must happen through trusted database/server flows such as signup bootstrap, invitation redemption, or super-admin/account-member APIs.
+
+### AI Usage Uses Atomic Reservation And Refund
+
+AI provider calls now reserve one monthly reply through a service-role RPC before model work begins. If provider generation or WhatsApp send/save fails, the reservation is refunded. This prevents concurrent `/ai-test` or inbound WhatsApp requests from racing past monthly package limits.
+
+### Inbound WhatsApp Message IDs Are Idempotency Keys
+
+Meta webhook signatures prove authenticity but not freshness. Customer inbound WhatsApp messages are now unique per conversation by Meta `message_id`; duplicate deliveries are ignored before unread counts, flows, automations, or AI reply side effects run.
+
+### Automation Webhook Steps Are Constrained Outbound Calls
+
+Advanced CRM `send_webhook` steps remain available only for accounts with Advanced CRM enabled, but destinations must be HTTPS public hosts. The runtime blocks local/private/link-local DNS results, disables redirects, and supports `AUTOMATION_WEBHOOK_ALLOWED_HOSTS` for production allowlisting.
+
+### AI Prompt Size Is Bounded Server-Side
+
+Business profile, products/services, FAQ/knowledge, transcript, and customer-message content are truncated before provider calls. This keeps one AI reply from becoming an unbounded token/cost/latency event.
+
+### Authenticated App Routes Are Private No-Store
+
+Dashboard, auth, join, and other app HTML routes can contain user-specific or tenant-specific data. The Next.js config therefore defaults non-API HTML to `private, no-cache, no-store, max-age=0, must-revalidate` and only applies short public CDN caching to explicitly public pages (`/`, `/privacy`, `/terms`, `/data-deletion`).
+
+### Product Limits Serialize Per Account
+
+Product/service limits are package controls and must hold under concurrent inserts. The product-limit trigger locks the parent `accounts` row before counting `account_products`, so simultaneous inserts for one account serialize and cannot race past the configured limit.

@@ -3,6 +3,7 @@ import { sendReactionMessage } from '@/lib/whatsapp/meta-api';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { createServiceRoleClient } from '@/lib/supabase/admin';
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -89,7 +90,7 @@ export async function POST(request: Request) {
     }
 
     // WhatsApp config + access token. Account-scoped post-multi-user.
-    const { data: config, error: configError } = await supabase
+    const { data: config, error: configError } = await createServiceRoleClient()
       .from('whatsapp_config')
       .select('phone_number_id, access_token')
       .eq('account_id', accountId)
@@ -118,7 +119,7 @@ export async function POST(request: Request) {
         err instanceof Error ? err.message : 'Unknown Meta API error';
       console.error('[whatsapp/react] Meta send failed:', message);
       return NextResponse.json(
-        { error: `Meta API error: ${message}` },
+        { error: 'WhatsApp could not process that reaction.' },
         { status: 502 }
       );
     }
